@@ -1,0 +1,8 @@
+.stack-work
+event.log*
+station.cache*
+.DS_Store
+users.repo
+TAGS
+Setup.hs
+Goal.txt
