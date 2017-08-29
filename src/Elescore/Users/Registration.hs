@@ -7,7 +7,7 @@ import           ClassyPrelude
 import           Control.Monad.Except
 import           Control.Monad.State
 import           Crypto.Random
-import qualified Data.ByteString.Base64 as B64
+import qualified Data.ByteString.Base16 as Hex
 
 import           Elescore.Users.Types
 
@@ -20,7 +20,7 @@ startRegistration u e = toUserAction "username or email taken" $ do
     else Just <$> (mkRegistrationToken >>= insertToken u e)
 
   where
-    mkRegistrationToken = liftIO $ RegistrationToken . decodeUtf8 . B64.encode <$> getRandomBytes 32
+    mkRegistrationToken = liftIO $ RegistrationToken . decodeUtf8 . Hex.encode <$> getRandomBytes 32
 
 completeRegistration :: RegistrationToken -> HashedPassword -> UserAction User
 completeRegistration t pw = toUserAction "unknown token" $ do
