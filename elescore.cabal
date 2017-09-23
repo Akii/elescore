@@ -19,6 +19,7 @@ library
                      , Elescore.Api.Types
                      , Elescore.Api.Handler.Data
                      , Elescore.Api.Handler.User
+                     , Elescore.Disruptions.History
                      , Elescore.Disruptions.Types
                      , Elescore.Remote.Client
                      , Elescore.Remote.DisruptionLog

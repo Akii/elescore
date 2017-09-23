@@ -10,6 +10,7 @@ import           System.IO                     (BufferMode (LineBuffering),
                                                 hSetBuffering, stdout)
 
 import           Elescore.Api                  (eleapi)
+import           Elescore.Disruptions.History  (loadHistory)
 import           Elescore.Pipeline             (elepipe)
 import           Elescore.Remote.DisruptionLog (loadDisruptionEvents)
 import           Elescore.Remote.Monitoring    (replayEvents)
@@ -27,7 +28,7 @@ run o = do
   sc <- loadStations (optStationCache o)
   usrs <- loadRepository (optUserRepo o)
   mgr <- newManager tlsManagerSettings
-  env <- mkEnv o mgr (replayEvents devs) sc usrs
+  env <- mkEnv o mgr (replayEvents devs) sc (loadHistory devs) usrs
 
   _ <- async $ runElescore env eleapi
   runElescore env (elepipe devs)

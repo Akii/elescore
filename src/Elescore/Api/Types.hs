@@ -15,7 +15,7 @@ import           Elescore.Users.Types         (UserName)
 data User = User
   { uName      :: !UserName
   , uWatchlist :: !(Set FacilityId)
-  , uToken     :: !(Text)
+  , uToken     :: !Text
   }
 
 data Disruption = Disruption

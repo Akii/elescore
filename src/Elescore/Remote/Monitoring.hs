@@ -23,7 +23,7 @@ import           Elescore.Remote.Types
 data Change
   = New
   | Updated
-  | Resolved
+  | Resolved -- should be named "deleted" or "removed"
   deriving (Show, Eq)
 
 data DisruptionEvent = DisruptionEvent

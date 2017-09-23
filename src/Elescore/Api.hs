@@ -1,5 +1,5 @@
-{-# LANGUAGE DataKinds       #-}
-{-# LANGUAGE TypeOperators   #-}
+{-# LANGUAGE DataKinds     #-}
+{-# LANGUAGE TypeOperators #-}
 
 module Elescore.Api
   ( eleapi
@@ -17,7 +17,8 @@ import           Servant.Utils.StaticFiles
 import           Elescore.Api.Handler.Data
 import           Elescore.Api.Handler.User
 import           Elescore.Types                      (Elescore, Opts (..),
-                                                      currDisruptionsRef, opts,
+                                                      currDisruptionsRef,
+                                                      disruptionHistory, opts,
                                                       stationCache, users)
 import           Elescore.Users.Types
 
@@ -31,6 +32,7 @@ eleapi :: Elescore ()
 eleapi = do
   disRef <- currDisruptionsRef
   sc <- stationCache
+  h <- disruptionHistory
   port <- opts optPort
   dir <- opts optStaticDir
   userEnv <- mkUserEnv
@@ -40,13 +42,13 @@ eleapi = do
   let jwtCfg = defaultJWTSettings myKey
       cfg =  defaultCookieSettings :. jwtCfg :. EmptyContext
 
-  liftIO $ run port $ serveWithContext api cfg (server jwtCfg disRef sc dir userEnv)
+  liftIO $ run port $ serveWithContext api cfg (server jwtCfg disRef sc h dir userEnv)
 
   where
-    server jwt dis sc dir env =
+    server jwt dis sc h dir env =
            withAuth (protectedUserServer env jwt)
       :<|> unprotectedUserServer env jwt
-      :<|> dataServer dis sc
+      :<|> dataServer dis sc h
       :<|> serveDirectoryFileServer dir
 
     withAuth s (Authenticated uid) = s uid

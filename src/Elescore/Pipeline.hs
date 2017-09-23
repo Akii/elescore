@@ -11,6 +11,7 @@ import           Pipes
 import           Pipes.Concurrent              hiding (New)
 import qualified Pipes.Prelude                 as P
 
+import           Elescore.Disruptions.History  (History, applyEventToHistory)
 import           Elescore.Disruptions.Types
 import           Elescore.Notifications
 import           Elescore.Remote.Client
@@ -26,24 +27,29 @@ import           Elescore.Users.Types
 elepipe :: [DisruptionEvent] -> Elescore ()
 elepipe devs = do
   disRef <- currDisruptionsRef
+  historyRef <- disruptionHistory
   dis <- liftIO (readIORef disRef)
+  h <- liftIO (readIORef historyRef)
 
   (out1,in1) <- liftIO (spawn unbounded)
   (out2,in2) <- liftIO (spawn unbounded)
+  (out3,in3) <- liftIO (spawn unbounded)
 
-  (out3, in3) <- liftIO (spawn unbounded)
   (out4, in4) <- liftIO (spawn unbounded)
+  (out5, in5) <- liftIO (spawn unbounded)
 
-  runEffect $ each devs >-> P.map (disruptionToFacility . toDisruption . devDisruption) >-> toOutput out4
+  runEffect $ each devs >-> P.map (disruptionToFacility . toDisruption . devDisruption) >-> toOutput out5
 
-  let disEventP    = disruptionProducer 10 >-> disruptionEventPipe dis >-> toOutput (out1 <> out2)
+  let disEventP    = disruptionProducer 10 >-> disruptionEventPipe dis >-> toOutput (out1 <> out2 <> out3)
       disEvLogP    = fromInput in1 >-> eventLogPipe >-> printPipe >-> notificationPipe >-> disruptionsStatePipe dis >-> ioRefConsumer disRef
-      disFacilityP = fromInput in2 >-> P.map (disruptionToFacility . toDisruption . devDisruption) >-> toOutput out4
-      facilityP    = facilityProducer 3600  >-> toOutput out3
-      stationC     = fromInput (in3 <> in4) >-> stationFetchingPipe 5 >-> stationCacheConsumer
+      disHistoryP  = fromInput in3 >-> disruptionHistoryPipe h >-> ioRefConsumer historyRef
+      disFacilityP = fromInput in2 >-> P.map (disruptionToFacility . toDisruption . devDisruption) >-> toOutput out5
+      facilityP    = facilityProducer 3600  >-> toOutput out4
+      stationC     = fromInput (in4 <> in5) >-> stationFetchingPipe 5 >-> stationCacheConsumer
 
   elepar [runEffect disEventP,
           runEffect disEvLogP,
+          runEffect disHistoryP,
           runEffect disFacilityP,
           runEffect facilityP,
           runEffect stationC]
@@ -115,6 +121,15 @@ disruptionsStatePipe = go
       let st' = applyEvent st dev
       yield st'
       go st'
+
+disruptionHistoryPipe :: History -> Pipe DisruptionEvent History Elescore ()
+disruptionHistoryPipe = go
+  where
+    go h = do
+      dev <- await
+      let h' = applyEventToHistory h dev
+      yield h'
+      go h'
 
 stationFetchingPipe :: Int -> Pipe Facility Station Elescore ()
 stationFetchingPipe delay = do

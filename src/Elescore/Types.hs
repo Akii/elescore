@@ -11,6 +11,7 @@ import           Elescore.Disruptions.Types
 import           Elescore.Remote.StationCache
 import           Elescore.Remote.Types
 import           Elescore.Users.Types         (Users)
+import Elescore.Disruptions.History
 
 -- The Elescore Monad
 
@@ -19,6 +20,7 @@ data Env = Env
   , envRequestManager     :: !Manager
   , envCurrentDisruptions :: !(IORef Disruptions)
   , envStationCache       :: !StationCache
+  , envDisruptionHistory  :: !(IORef History)
   , envUsers              :: !Users
   }
 
@@ -26,10 +28,11 @@ newtype Elescore a = Elescore
   { elescore :: ReaderT Env IO a
   } deriving (Functor, Applicative, Monad, MonadIO, MonadThrow, MonadCatch, MonadMask)
 
-mkEnv :: Opts -> Manager -> Disruptions -> StationCache -> Users -> IO Env
-mkEnv o m d sc us = do
+mkEnv :: Opts -> Manager -> Disruptions -> StationCache -> History -> Users -> IO Env
+mkEnv o m d sc h us = do
   disRef <- newIORef d
-  return (Env o m disRef sc us)
+  hRef <- newIORef h
+  return (Env o m disRef sc hRef us)
 
 runElescore :: Env -> Elescore a -> IO a
 runElescore env e = runReaderT (elescore e) env
@@ -51,6 +54,9 @@ currDisruptionsRef = Elescore $ asks envCurrentDisruptions
 
 stationCache :: Elescore StationCache
 stationCache = Elescore $ asks envStationCache
+
+disruptionHistory :: Elescore (IORef History)
+disruptionHistory = Elescore $ asks envDisruptionHistory
 
 stations :: Elescore Stations
 stations = liftIO . getStations =<< stationCache
