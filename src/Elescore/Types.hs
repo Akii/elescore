@@ -76,7 +76,6 @@ data Opts = Opts
     , optStationCache :: !String
     , optUserRepo     :: !String
     , optPort         :: !Int
-    , optStaticDir    :: !String
     } deriving (Eq, Show)
 
 parseOptions :: IO Opts
@@ -120,9 +119,3 @@ parseOptions = execParser (info (helper <*> optsParser) desc)
                 <> metavar "PORT"
                 <> help "Port for the frontend services"
                 <> value 8080)
-
-        <*> (strOption $
-                long "static-dir"
-                <> metavar "STATICDIR"
-                <> help "Directory of the static frontend resources"
-                <> value "./static")

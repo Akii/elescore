@@ -12,7 +12,6 @@ import           Servant.API
 import           Servant.Auth.Server
 import           Servant.Auth.Server.SetCookieOrphan ()
 import           Servant.Server
-import           Servant.Utils.StaticFiles
 
 import           Elescore.Api.Handler.Data
 import           Elescore.Api.Handler.User
@@ -26,7 +25,6 @@ type API auths =
        "api" :> Auth auths UserId :> ProtectedUserApi
   :<|> "api" :> UnprotectedUserApi
   :<|> "api" :> DataApi
-  :<|> Raw
 
 eleapi :: Elescore ()
 eleapi = do
@@ -34,7 +32,6 @@ eleapi = do
   sc <- stationCache
   h <- disruptionHistory
   port <- opts optPort
-  dir <- opts optStaticDir
   userEnv <- mkUserEnv
 
   myKey <- liftIO generateKey
@@ -42,14 +39,13 @@ eleapi = do
   let jwtCfg = defaultJWTSettings myKey
       cfg =  defaultCookieSettings :. jwtCfg :. EmptyContext
 
-  liftIO $ run port $ serveWithContext api cfg (server jwtCfg disRef sc h dir userEnv)
+  liftIO $ run port $ serveWithContext api cfg (server jwtCfg disRef sc h userEnv)
 
   where
-    server jwt dis sc h dir env =
+    server jwt dis sc h env =
            withAuth (protectedUserServer env jwt)
       :<|> unprotectedUserServer env jwt
       :<|> dataServer dis sc h
-      :<|> serveDirectoryFileServer dir
 
     withAuth s (Authenticated uid) = s uid
     withAuth _ _                   = throwAll err401
