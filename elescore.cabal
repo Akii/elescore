@@ -1,94 +1,95 @@
-name:                elescore
-version:             0.1.0.0
--- synopsis:
--- description:
-homepage:            https://github.com/githubuser/elescore#readme
-license:             BSD3
-license-file:        LICENSE
-author:              Author name here
-maintainer:          example@example.com
-copyright:           2017 Author name here
-category:            Web
-build-type:          Simple
-extra-source-files:  README.md
-cabal-version:       >=1.10
+-- This file has been generated from package.yaml by hpack version 0.20.0.
+--
+-- see: https://github.com/sol/hpack
+--
+-- hash: 936fd55185935883fc7e54011d6866d3be7e54836e82d0ac543fe5b9325d7bfe
 
-library
-  hs-source-dirs:      src
-  exposed-modules:     Elescore
-                     , Elescore.Api.Types
-                     , Elescore.Api.Handler.Data
-                     , Elescore.Api.Handler.User
-                     , Elescore.Disruptions.History
-                     , Elescore.Disruptions.Types
-                     , Elescore.Remote.Client
-                     , Elescore.Remote.DisruptionLog
-                     , Elescore.Remote.Monitoring
-                     , Elescore.Remote.StationCache
-                     , Elescore.Remote.Types
-                     , Elescore.Users.Registration
-                     , Elescore.Users.Types
-                     , Elescore.Api
-                     , Elescore.Notifications
-                     , Elescore.Pipeline
-                     , Elescore.Repository
-                     , Elescore.Types
-  build-depends:       base >= 4.7 && < 5
-                     , aeson
-                     , async
-                     , bytestring
-                     , classy-prelude
-                     , containers
-                     , datetime
-                     , http-api-data
-                     , http-client
-                     , http-client-tls
-                     , optparse-applicative
-                     , pipes
-                     , pipes-concurrency
-                     , servant
-                     , servant-auth
-                     , servant-auth-server
-                     , servant-client
-                     , servant-server
-                     , text
-                     , uuid
-                     , warp
-                     , pwstore-fast
-                     , email-validate
-                     , attoparsec
-                     , cryptonite
-                     , mtl
-                     , mime-mail
-                     , base16-bytestring
-  ghc-options:         -Wall
-  default-language:    Haskell2010
-  default-extensions: NoImplicitPrelude
-                    , OverloadedStrings
+name:           elescore
+version:        0.1.0.0
+description:    Please see the README on Github at <https://github.com/akii/elescore#readme>
+homepage:       https://github.com/akii/elescore#readme
+bug-reports:    https://github.com/akii/elescore/issues
+author:         Philipp Maier
+maintainer:     zedd@akii.de
+copyright:      2017 Philipp Maier
+license:        BSD3
+license-file:   LICENSE
+build-type:     Simple
+cabal-version:  >= 1.10
 
-executable elescore
-  hs-source-dirs:      app
-  main-is:             Main.hs
-  ghc-options:         -threaded -rtsopts -with-rtsopts=-N
-  build-depends:       base
-                     , elescore
-                     , classy-prelude
-  default-language:    Haskell2010
-  default-extensions:  NoImplicitPrelude
-                     , OverloadedStrings
-
-test-suite elescore-test
-  type:                exitcode-stdio-1.0
-  hs-source-dirs:      test
-  main-is:             Spec.hs
-  build-depends:       base
-                     , elescore
-                     , classy-prelude
-  ghc-options:         -threaded -rtsopts -with-rtsopts=-N
-  default-language:    Haskell2010
-  default-extensions:  NoImplicitPrelude
-                     , OverloadedStrings
+extra-source-files:
+    README.md
 
 source-repository head
-  type:     git
-  location: https://github.com/githubuser/elescore
+  type: git
+  location: https://github.com/akii/elescore
+
+library
+  hs-source-dirs:
+      src
+  default-extensions: NoImplicitPrelude OverloadedStrings
+  ghc-options: -Wall
+  build-depends:
+      aeson
+    , async
+    , attoparsec
+    , base >=4.7 && <5
+    , base16-bytestring
+    , bytestring
+    , classy-prelude
+    , containers
+    , cryptonite
+    , datetime
+    , email-validate
+    , exceptions
+    , free
+    , http-api-data
+    , http-client
+    , http-client-tls
+    , mime-mail
+    , mtl
+    , optparse-applicative
+    , pipes
+    , pipes-concurrency
+    , pwstore-fast
+    , servant
+    , servant-auth
+    , servant-auth-server
+    , servant-client
+    , servant-server
+    , text
+    , uuid
+    , warp
+  exposed-modules:
+      Elescore
+      Elescore.Api
+      Elescore.Api.Handler.Data
+      Elescore.Api.Handler.User
+      Elescore.Api.Types
+      Elescore.Common.EventLog
+      Elescore.Common.Types
+      Elescore.Disruptions.StationCache
+      Elescore.Notifications
+      Elescore.Pipeline
+      Elescore.Remote
+      Elescore.Remote.Client
+      Elescore.Remote.Monitoring
+      Elescore.Remote.Types
+      Elescore.Types
+      Elescore.Users.Registration
+      Elescore.Users.Types
+  other-modules:
+      Paths_elescore
+  default-language: Haskell2010
+
+executable elescore-exe
+  main-is: Main.hs
+  hs-source-dirs:
+      app
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+      base >=4.7 && <5
+    , elescore
+  other-modules:
+      Paths_elescore
+  default-language: Haskell2010

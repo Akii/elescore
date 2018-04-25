@@ -5,12 +5,11 @@ module Elescore.Api.Types where
 
 import           ClassyPrelude
 import           Data.Aeson.TH
-import           Data.DateTime
 
-import           Elescore.Disruptions.Types   hiding (Disruption)
-import           Elescore.Remote.StationCache
+import           Elescore.Common.Types
+import           Elescore.Disruptions.StationCache
 import           Elescore.Remote.Types
-import           Elescore.Users.Types         (UserName)
+import           Elescore.Users.Types              (UserName)
 
 data User = User
   { uName      :: !UserName
@@ -18,32 +17,28 @@ data User = User
   , uToken     :: !Text
   }
 
-data Disruption = Disruption
-  { uidId             :: !DisruptionId
-  , uidStationId      :: !StationId
-  , uidStationName    :: !(Maybe Text)
+data UIDisruption = UIDisruption
+  { uidStationId      :: !StationId
   , uidFacilityId     :: !FacilityId
-  , uidFacilityType   :: !FacilityType
+  , uidStationName    :: !(Maybe Text)
+  , uidFacilityType   :: !(Maybe FacilityType)
   , uidFacilityDescr  :: !(Maybe Text)
-  --, uidOccurredOn     :: DateTime -- todo fix this
-  , uidUpdatedOn      :: !(Maybe DateTime)
   , uidGeoCoordinates :: !(Maybe Point)
   }
 
-mkUIDisruption :: StationCache -> DisruptionData -> IO Disruption
-mkUIDisruption sc DisruptionData {..} = do
+mkUIDisruption :: StationCache -> Disruption -> IO UIDisruption
+mkUIDisruption sc Disruption {..} = do
   ms <- getStation sc disStationId
 
-  let uidId = disId
+  let mf = lookup disFacilityId =<< fmap sFacilities ms
       uidStationId = disStationId
-      uidStationName = join $ fmap sName ms
-      uidFacilityId = disEquipmentId
-      uidFacilityType = disType
-      uidFacilityDescr = join $ fmap fDescription =<< fmap (lookup disEquipmentId . sFacilities) ms
-      uidUpdatedOn = disLastUpdate
-      uidGeoCoordinates = join $ fmap fGeoCoordinates =<< fmap (lookup disEquipmentId . sFacilities) ms
+      uidStationName = fmap sName ms
+      uidFacilityId = disFacilityId
+      uidFacilityType = fmap fType mf
+      uidFacilityDescr = join . fmap fDescription $ mf
+      uidGeoCoordinates = join . fmap fGeoCoordinates $ mf
 
-  return Disruption {..}
+  return UIDisruption {..}
 
 deriveToJSON defaultOptions { fieldLabelModifier = drop 1 } ''User
-deriveToJSON defaultOptions { fieldLabelModifier = drop 3 } ''Disruption
+deriveToJSON defaultOptions { fieldLabelModifier = drop 3 } ''UIDisruption

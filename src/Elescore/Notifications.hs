@@ -4,10 +4,11 @@ module Elescore.Notifications
   ) where
 
 import           ClassyPrelude
-import qualified Data.Text.Lazy            as LBS
+import qualified Data.Text.Lazy        as LBS
 import           Network.Mail.Mime
 
-import           Elescore.Disruptions.Types
+import           Elescore.Common.Types
+import           Elescore.Remote.Types
 import           Elescore.Users.Types
 
 sendUserRegistrationMail :: Text -> Text -> RegistrationToken -> IO ()
@@ -25,14 +26,12 @@ notifyAboutDisruption d ms mf u =
   renderSendMail (simpleMail' to from subject body)
 
   where
-    subject = "Neue Störung auf Elescore | " <> disruptionId
+    subject = "Neue Störung auf Elescore | " <> (tshow . unStationId . disStationId $ d)
     body = LBS.fromStrict $
-      "Störung Nr.: " <> disruptionId <>
       "\nStation: " <> stationName <>
       "\nAufzug/Rolltreppe: " <> facilityDescription
 
     from = Address (Just "Elescore") "elescore@akii.de"
     to = Address (Just . unUserName . uName $ u) (unEmailAddress . uEmail $ u)
-    disruptionId = tshow . unDisruptionId . disId $ d
-    stationName = fromMaybe ("Unbekannt (" <> (tshow . unStationId . disStationId $ d) <> ")") (join $ fmap sName $ ms)
+    stationName = maybe ("Unbekannt (" <> (tshow . unStationId . disStationId $ d) <> ")") sName ms
     facilityDescription = fromMaybe ("Unbekannt (" <> (tshow . unFacilityId . disFacilityId $ d) <> ")") (join $ fmap fDescription $ mf)

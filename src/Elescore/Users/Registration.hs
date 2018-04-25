@@ -1,6 +1,7 @@
 module Elescore.Users.Registration
   ( startRegistration
   , completeRegistration
+  , saveUser
   ) where
 
 import           ClassyPrelude
@@ -8,6 +9,9 @@ import           Control.Monad.Except
 import           Control.Monad.State
 import           Crypto.Random
 import qualified Data.ByteString.Base16 as Hex
+import qualified Data.ByteString.Char8 as BS
+import Data.Aeson
+
 
 import           Elescore.Users.Types
 
@@ -31,6 +35,13 @@ completeRegistration t pw = toUserAction "unknown token" $ do
     Just (u,e) -> do
       removeToken t
       liftIO $ Just <$> mkUser u e pw
+
+saveUser :: User -> UserAction ()
+saveUser u = do
+  fp <- asks envUsersFile
+  uvar <- asks envUsers
+  atomically (modifyTVar' uvar (insertMap (uId u) u))
+  liftIO $ readTVarIO uvar >>= BS.writeFile fp . toStrict . encode
 
 toUserAction ::  Text -> RegistrationAction (Maybe a) -> UserAction a
 toUserAction t r = do

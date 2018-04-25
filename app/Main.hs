@@ -1,6 +1,6 @@
 module Main where
 
-import ClassyPrelude
+import Prelude
 import Elescore
 
 main :: IO ()

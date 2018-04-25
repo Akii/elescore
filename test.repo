@@ -1,0 +1,6 @@
+{"change":"Added","date":"2017-11-29T18:55:09.191924Z","payload":{"msId":"2","stuff":"foo","moreStuff":"blar"}}
+{"change":"Updated","date":"2017-11-29T18:55:09.191923Z","payload":{"msId":"1","stuff":"foostuff","moreStuff":"foo"}}
+{"change":"Added","date":"2017-11-29T18:55:09.191921Z","payload":{"msId":"1","stuff":"stuff","moreStuff":"foo"}}
+{"change":"Added","date":"2017-11-29T18:55:09.191924Z","payload":{"msId":"2","stuff":"foo","moreStuff":"blar"}}
+{"change":"Updated","date":"2017-11-29T18:55:09.191923Z","payload":{"msId":"1","stuff":"foostuff","moreStuff":"foo"}}
+{"change":"Added","date":"2017-11-29T18:55:09.191921Z","payload":{"msId":"1","stuff":"stuff","moreStuff":"foo"}}

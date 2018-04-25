@@ -7,48 +7,36 @@ import           ClassyPrelude
 import           Control.Monad.Except
 import           Control.Monad.State
 import           Crypto.PasswordStore
-import           Data.Aeson.Encoding              (text)
 import           Data.Aeson.TH
-import           Data.Aeson.Types                 (FromJSONKey (..),
-                                                   ToJSONKey (..),
-                                                   ToJSONKeyFunction (ToJSONKeyText))
 import           Data.Attoparsec.ByteString.Char8
 import           Data.Map                         (elems)
 import           Data.Text                        (strip)
-import           Data.UUID
-import           Data.UUID.V4                     (nextRandom)
-import           Servant.Auth.Server.Internal.JWT
 import qualified Text.Email.Validate              as EmailV
 
-import           Elescore.Disruptions.Types
-import           Elescore.Remote.StationCache
-import           Elescore.Repository
+import           Elescore.Common.Types
+import Elescore.Disruptions.StationCache
 
-type Users = Repository (Map UserId User)
+type Users = Map UserId User
 
 data Env = Env
   { envUsersFile     :: !FilePath
-  , envUsers         :: !Users
+  , envUsers         :: !(TVar Users)
   , envRegistrations :: !(TVar Registrations)
-  , envStations      :: !StationCache
+  , envStations :: !StationCache
   }
 
 newtype UserAction a = UserAction
   { unUserAction :: ExceptT Text (ReaderT Env IO) a
   } deriving (Functor, Applicative, Monad, MonadIO, MonadReader Env, MonadError Text)
 
-mkEnv :: FilePath -> Users -> StationCache -> IO Env
-mkEnv fp r sc = do
-  users <- getEntities r
+mkEnv :: FilePath -> StationCache -> TVar Users -> IO Env
+mkEnv fp sc uvar = do
+  users <- readTVarIO uvar
   regs <- newTVarIO (mkRegistrations (elems users))
-  return (Env fp r regs sc)
+  return (Env fp uvar regs sc)
 
 runUserAction :: Env -> UserAction a -> IO (Either Text a)
-runUserAction env = (`runReaderT` env) . runExceptT . unUserAction
-
-newtype UserId = UserId
-  { unUserId :: UUID
-  } deriving (Ord, Eq)
+runUserAction env = flip runReaderT env . runExceptT . unUserAction
 
 newtype UserName = UserName
   { unUserName :: Text
@@ -73,13 +61,6 @@ data User = User
   , uWatchingFacilities :: !(Set FacilityId)
   }
 
-saveUser :: User -> UserAction ()
-saveUser u = do
-  r <- asks envUsers
-  liftIO $ do
-    modifyEntities r (insertMap (uId u) u)
-    saveRepository r
-
 -- registrations
 
 type RegistrationAction a = StateT Registrations IO a
@@ -100,7 +81,7 @@ mkRegistrations xs =
 
 mkUser :: UserName -> EmailAddress -> HashedPassword -> IO User
 mkUser n e pw = do
-  uid <- UserId <$> nextRandom
+  uid <- nextUserId
   return (User uid n e pw mempty)
 
 mkUserName :: Text -> UserAction UserName
@@ -111,7 +92,7 @@ mkUserName u =
     variableP :: Parser Text
     variableP = do
       un <- strip . pack <$> many (digit <|> letter_ascii) <* endOfInput
-      if (length un < 3 || length un > 16)
+      if length un < 3 || length un > 16
         then fail "Name too long or too short"
         else return un
 
@@ -135,16 +116,5 @@ validateDummyPassword t =
 
 concat <$> mapM
   (deriveJSON defaultOptions { unwrapUnaryRecords = True })
-  [''UserId, ''UserName, ''EmailAddress, ''HashedPassword, ''User]
+  [''UserName, ''EmailAddress, ''HashedPassword, ''User]
 
-instance FromJSONKey UserId where
-  fromJSONKey = UserId <$> fromJSONKey
-
-instance ToJSONKey UserId where
-  toJSONKey = ToJSONKeyText f g
-    where
-      f (UserId i) = tshow i
-      g = text . f
-
-instance FromJWT UserId
-instance ToJWT UserId

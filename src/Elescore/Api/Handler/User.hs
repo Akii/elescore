@@ -9,19 +9,19 @@ module Elescore.Api.Handler.User
   ) where
 
 import           ClassyPrelude                       hiding (Handler)
+import qualified Data.ByteString.Lazy.Char8          as LBS
 import           Data.Either                         (isLeft)
 import           Data.Map                            (elems)
 import           Servant
 import           Servant.Auth.Server
 import           Servant.Auth.Server.SetCookieOrphan ()
-import qualified Data.ByteString.Lazy.Char8    as LBS
 
-import           Elescore.Disruptions.Types
+import qualified Elescore.Api.Types                  as UI
+import           Elescore.Common.Types
+import           Elescore.Disruptions.StationCache
 import           Elescore.Notifications
-import           Elescore.Repository
 import           Elescore.Users.Registration
 import           Elescore.Users.Types
-import qualified Elescore.Api.Types as UI
 
 type UnprotectedUserApi =
        "account" :> "register" :> ReqBody '[JSON] (Text, Text) :> Post '[JSON] ()
@@ -68,12 +68,12 @@ completeRegistrationHandler env jwt (t,pw) = do
 
 loginHandler :: Env -> JWTSettings -> (Text,Text) -> Handler UI.User
 loginHandler env jwt (ident,pw) = do
-  ur <- liftIO $ findByNameOrEmail . elems <$> getEntities (envUsers env)
+  ur <- liftIO $ findByNameOrEmail . elems <$> readTVarIO (envUsers env)
   unless (maybe (validateDummyPassword pw) (validatePassword pw . uPassword) ur) $ throwError err404
 
   case ur of
     Nothing -> throwError err404
-    Just u -> accountHandler env jwt (uId u)
+    Just u  -> accountHandler env jwt (uId u)
 
   where
     findByNameOrEmail :: [User] -> Maybe User
@@ -88,13 +88,13 @@ watchlistAddHandler :: Env -> UserId -> FacilityId -> Handler (Set FacilityId)
 watchlistAddHandler env uid fid = withUser env uid $ \u -> do
   let u' = u { uWatchingFacilities = insertSet fid (uWatchingFacilities u) }
 
-  stations <- liftIO $ getsEntities (envStations env) elems
+  stations <- liftIO $ elems <$> getStations (envStations env)
   unless (facilityExists stations) $ throwError err404
   res <- liftIO $ runUserAction env $ saveUser u'
 
   case res of
     Left err -> print err >> throwError err500
-    Right _ -> return (uWatchingFacilities u')
+    Right _  -> return (uWatchingFacilities u')
 
   where
     facilityExists = any (member fid . sFacilities)
@@ -106,11 +106,11 @@ watchlistRemoveHandler env uid fid = withUser env uid $ \u -> do
 
   case res of
     Left err -> print err >> throwError err500
-    Right _ -> return (uWatchingFacilities u')
+    Right _  -> return (uWatchingFacilities u')
 
 withUser :: Env -> UserId -> (User -> Handler a) -> Handler a
 withUser env uid f = do
-  mu <- liftIO $ lookup uid <$> getEntities (envUsers env)
+  mu <- liftIO $ lookup uid <$> readTVarIO (envUsers env)
   maybe (throwError err404) f mu
 
 mkUIUser :: JWTSettings -> User -> Handler UI.User

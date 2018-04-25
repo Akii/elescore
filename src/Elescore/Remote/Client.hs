@@ -1,63 +1,56 @@
-{-# LANGUAGE DataKinds       #-}
-{-# LANGUAGE TypeOperators   #-}
+{-# LANGUAGE DataKinds     #-}
+{-# LANGUAGE TypeOperators #-}
 
 module Elescore.Remote.Client
-  ( fetchDisruptions
-  , fetchDisruption
+  ( API
   , fetchFacilities
   , fetchFacility
+  , fetchDisruptions
   , fetchStation
   ) where
 
 import           ClassyPrelude
 import           Data.Proxy
+import           Network.HTTP.Client     (Manager)
 import           Servant.API
 import           Servant.Client
 
+import           Elescore.Common.Types
 import           Elescore.Remote.Types
-import           Elescore.Types
 
-type FaStaAPI = "fasta" :> "v1" :> (DisruptionsAPI :<|> FacilitiesAPI :<|> StationAPI)
+type Host = String
+type API a = ReaderT (ApiKey, Manager, Host) IO a
 
-type DisruptionsAPI = "disruptions" :> Header "Authorization" ApiKey :> Get '[JSON] [RemoteDisruption]
-                 :<|> "disruptions" :> Header "Authorization" ApiKey :> Capture "disruption id" Int :> Get '[JSON] RemoteDisruption
+type FaStaAPI = "fasta" :> "v2" :> (FacilitiesAPI :<|> StationAPI)
 
-type FacilitiesAPI = "facilities" :> Header "Authorization" ApiKey :> Get '[JSON] [RemoteFacility]
-                :<|> "facilities" :> Header "Authorization" ApiKey :> Capture "facility id" Int :> Get '[JSON] RemoteFacility
+type FacilitiesAPI = "facilities" :> Header "Authorization" ApiKey :> Get '[JSON] [Remote Facility]
+                :<|> "facilities" :> Header "Authorization" ApiKey :> QueryParam "state" [Remote FacilityState] :> Get '[JSON] [Remote Disruption]
+                :<|> "facilities" :> Header "Authorization" ApiKey :> Capture "facility id" Int :> Get '[JSON] (Remote Facility)
 
-type StationAPI = "stations" :> Header "Authorization" ApiKey :> Capture "station id" Int :> Get '[JSON] RemoteStation
+type StationAPI = "stations" :> Header "Authorization" ApiKey :> Capture "station id" Int :> Get '[JSON] (Remote Station)
 
-fetchDisruptions :: Elescore (Either ServantError [DisruptionData])
-fetchDisruptions = (fmap . fmap . fmap) unRemoteDisruption (makeRequest disruptions)
+fetchFacilities :: API (Either ServantError [Facility])
+fetchFacilities = (fmap . fmap . fmap) unRemote (makeRequest facilities)
 
-fetchDisruption :: Int -> Elescore (Either ServantError DisruptionData)
-fetchDisruption did = (fmap . fmap) unRemoteDisruption $ makeRequest (`disruption` did)
+fetchDisruptions :: API (Either ServantError [Disruption])
+fetchDisruptions = (fmap . fmap . fmap) unRemote . makeRequest . flip disruptions . Just $ [Remote Inactive, Remote Unknown]
 
-fetchFacilities :: Elescore (Either ServantError [FacilityData])
-fetchFacilities = (fmap . fmap . fmap) unRemoteFacility (makeRequest facilities)
+fetchFacility :: Int -> API (Either ServantError Facility)
+fetchFacility fid = fmap unRemote <$> makeRequest (`facility` fid)
 
-fetchFacility :: Int -> Elescore (Either ServantError FacilityData)
-fetchFacility fid = (fmap . fmap) unRemoteFacility $ makeRequest (`facility` fid)
+fetchStation :: Int -> API (Either ServantError Station)
+fetchStation sid = fmap unRemote <$> makeRequest (`station` sid)
 
-fetchStation :: Int -> Elescore (Either ServantError (StationData FacilityData))
-fetchStation sid =
-  let stationData = (fmap . fmap) unRemoteStation $ makeRequest (`station` sid)
-  in (fmap . fmap . fmap) unRemoteFacility stationData
-
-makeRequest :: (Maybe ApiKey -> ClientM a) -> Elescore (Either ServantError a)
+makeRequest :: (Maybe ApiKey -> ClientM a) -> API (Either ServantError a)
 makeRequest c = do
-  key <- apiKey
-  mgr <- reqManager
-  host <- opts optHost
+  (key, mgr, h) <- ask
+  liftIO $ runClientM (c $ Just key) (ClientEnv mgr (BaseUrl Https h 443 "") Nothing)
 
-  liftIO $ runClientM (c $ Just key) (ClientEnv mgr (BaseUrl Https host 443 ""))
-
-disruptions :: Maybe ApiKey -> ClientM [RemoteDisruption]
-disruption :: Maybe ApiKey -> Int -> ClientM RemoteDisruption
-facilities :: Maybe ApiKey -> ClientM [RemoteFacility]
-facility :: Maybe ApiKey -> Int -> ClientM RemoteFacility
-station :: Maybe ApiKey -> Int -> ClientM RemoteStation
-((disruptions :<|> disruption) :<|> (facilities :<|> facility) :<|> station) = client api
+facilities :: Maybe ApiKey -> ClientM [Remote Facility]
+disruptions :: Maybe ApiKey -> Maybe [Remote FacilityState] -> ClientM [Remote Disruption]
+facility :: Maybe ApiKey -> Int -> ClientM (Remote Facility)
+station :: Maybe ApiKey -> Int -> ClientM (Remote Station)
+((facilities :<|> disruptions :<|> facility) :<|> station) = client api
 
 api :: Proxy FaStaAPI
 api = Proxy

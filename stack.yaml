@@ -15,7 +15,7 @@
 # resolver:
 #  name: custom-snapshot
 #  location: "./custom-snapshot.yaml"
-resolver: lts-9.0
+resolver: lts-11.5
 
 # User packages to be built.
 # Various formats can be used as shown in the example below.
@@ -41,10 +41,9 @@ packages:
 # (e.g., acme-missiles-0.3)
 extra-deps:
 - datetime-0.3.1
-- email-validate-2.3
-- servant-auth-0.2.7.0
-- servant-auth-server-0.3.0.0
-- jose-0.5.0.5
+- servant-auth-0.3.1.0
+- servant-auth-server-0.3.2.0
+- cookie-0.4.3
 
 # Override default flag values for local packages and extra-deps
 flags: {}

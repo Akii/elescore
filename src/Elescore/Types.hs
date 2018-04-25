@@ -1,17 +1,15 @@
-{-# LANGUAGE DeriveFunctor              #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 module Elescore.Types where
 
 import           ClassyPrelude
-import           Network.HTTP.Client          (Manager)
+import           Control.Monad.Catch
+import           Network.HTTP.Client               (Manager)
 import           Options.Applicative
 
-import           Elescore.Disruptions.Types
-import           Elescore.Remote.StationCache
+import           Elescore.Disruptions.StationCache
 import           Elescore.Remote.Types
-import           Elescore.Users.Types         (Users)
-import Elescore.Disruptions.History
+import           Elescore.Users.Types              (Users)
 
 -- The Elescore Monad
 
@@ -19,20 +17,19 @@ data Env = Env
   { envOpts               :: !Opts
   , envRequestManager     :: !Manager
   , envCurrentDisruptions :: !(IORef Disruptions)
-  , envStationCache       :: !StationCache
-  , envDisruptionHistory  :: !(IORef History)
-  , envUsers              :: !Users
+  , envStations           :: !StationCache
+  , envUsers              :: !(TVar Users)
   }
 
 newtype Elescore a = Elescore
   { elescore :: ReaderT Env IO a
   } deriving (Functor, Applicative, Monad, MonadIO, MonadThrow, MonadCatch, MonadMask)
 
-mkEnv :: Opts -> Manager -> Disruptions -> StationCache -> History -> Users -> IO Env
-mkEnv o m d sc h us = do
+mkEnv :: Opts -> Manager -> Disruptions -> StationCache -> Users -> IO Env
+mkEnv o m d sc us = do
   disRef <- newIORef d
-  hRef <- newIORef h
-  return (Env o m disRef sc hRef us)
+  usersVar <- newTVarIO us
+  return (Env o m disRef sc usersVar)
 
 runElescore :: Env -> Elescore a -> IO a
 runElescore env e = runReaderT (elescore e) env
@@ -53,15 +50,12 @@ currDisruptionsRef :: Elescore (IORef Disruptions)
 currDisruptionsRef = Elescore $ asks envCurrentDisruptions
 
 stationCache :: Elescore StationCache
-stationCache = Elescore $ asks envStationCache
-
-disruptionHistory :: Elescore (IORef History)
-disruptionHistory = Elescore $ asks envDisruptionHistory
+stationCache = Elescore $ asks envStations
 
 stations :: Elescore Stations
 stations = liftIO . getStations =<< stationCache
 
-users :: Elescore Users
+users :: Elescore (TVar Users)
 users = Elescore $ asks envUsers
 
 opts :: (Opts -> a) -> Elescore a
@@ -118,4 +112,4 @@ parseOptions = execParser (info (helper <*> optsParser) desc)
                 long "port"
                 <> metavar "PORT"
                 <> help "Port for the frontend services"
-                <> value 8080)
+                <> value 8000)
