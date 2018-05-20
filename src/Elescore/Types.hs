@@ -9,7 +9,6 @@ import           Options.Applicative
 
 import           Elescore.Disruptions.StationCache
 import           Elescore.Remote.Types
-import           Elescore.Users.Types              (Users)
 
 -- The Elescore Monad
 
@@ -18,18 +17,16 @@ data Env = Env
   , envRequestManager     :: !Manager
   , envCurrentDisruptions :: !(IORef Disruptions)
   , envStations           :: !StationCache
-  , envUsers              :: !(TVar Users)
   }
 
 newtype Elescore a = Elescore
   { elescore :: ReaderT Env IO a
   } deriving (Functor, Applicative, Monad, MonadIO, MonadThrow, MonadCatch, MonadMask)
 
-mkEnv :: Opts -> Manager -> Disruptions -> StationCache -> Users -> IO Env
-mkEnv o m d sc us = do
+mkEnv :: Opts -> Manager -> Disruptions -> StationCache -> IO Env
+mkEnv o m d sc = do
   disRef <- newIORef d
-  usersVar <- newTVarIO us
-  return (Env o m disRef sc usersVar)
+  return (Env o m disRef sc)
 
 runElescore :: Env -> Elescore a -> IO a
 runElescore env e = runReaderT (elescore e) env
@@ -55,9 +52,6 @@ stationCache = Elescore $ asks envStations
 stations :: Elescore Stations
 stations = liftIO . getStations =<< stationCache
 
-users :: Elescore (TVar Users)
-users = Elescore $ asks envUsers
-
 opts :: (Opts -> a) -> Elescore a
 opts f = Elescore $ asks (f . envOpts)
 
@@ -68,7 +62,6 @@ data Opts = Opts
     , optApiKey       :: !String
     , optEventLog     :: !String
     , optStationCache :: !String
-    , optUserRepo     :: !String
     , optPort         :: !Int
     } deriving (Eq, Show)
 
@@ -101,12 +94,6 @@ parseOptions = execParser (info (helper <*> optsParser) desc)
                 <> metavar "STATIONCACHE"
                 <> help "File where the station queries are cached"
                 <> value "./station.cache")
-
-        <*> (strOption $
-                long "user-repo"
-                <> metavar "USERREPO"
-                <> help "File where the users are saved"
-                <> value "./users.repo")
 
         <*> (option auto $
                 long "port"

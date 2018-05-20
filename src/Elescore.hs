@@ -4,8 +4,6 @@ module Elescore
   ) where
 
 import           ClassyPrelude
-import           Data.Aeson                        (decode)
-import           Data.Maybe                        (fromJust)
 import           Network.HTTP.Client               (newManager)
 import           Network.HTTP.Client.TLS           (tlsManagerSettings)
 import           System.IO                         (BufferMode (LineBuffering),
@@ -26,9 +24,8 @@ run o = do
 
   devs <- loadLog (optEventLog o)
   sc <- loadStations (optStationCache o)
-  usrs <- fromJust . decode . fromStrict <$> readFile (optUserRepo o)
   mgr <- newManager tlsManagerSettings
-  env <- mkEnv o mgr (replayEvents devs) sc usrs
+  env <- mkEnv o mgr (replayEvents devs) sc
 
   _ <- async $ runElescore env eleapi
   runElescore env (elepipe devs)

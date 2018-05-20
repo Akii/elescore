@@ -9,13 +9,6 @@ import           Data.Aeson.TH
 import           Elescore.Common.Types
 import           Elescore.Disruptions.StationCache
 import           Elescore.Remote.Types
-import           Elescore.Users.Types              (UserName)
-
-data User = User
-  { uName      :: !UserName
-  , uWatchlist :: !(Set FacilityId)
-  , uToken     :: !Text
-  }
 
 data UIDisruption = UIDisruption
   { uidStationId      :: !StationId
@@ -40,5 +33,4 @@ mkUIDisruption sc Disruption {..} = do
 
   return UIDisruption {..}
 
-deriveToJSON defaultOptions { fieldLabelModifier = drop 1 } ''User
 deriveToJSON defaultOptions { fieldLabelModifier = drop 3 } ''UIDisruption

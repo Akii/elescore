@@ -41,9 +41,6 @@ packages:
 # (e.g., acme-missiles-0.3)
 extra-deps:
 - datetime-0.3.1
-- servant-auth-0.3.1.0
-- servant-auth-server-0.3.2.0
-- cookie-0.4.3
 
 # Override default flag values for local packages and extra-deps
 flags: {}

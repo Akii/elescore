@@ -7,17 +7,14 @@ module Elescore.Pipeline
 import           ClassyPrelude                     hiding ((<>))
 import           Control.Concurrent                (threadDelay)
 import           Data.Aeson                        (encode)
-import           Data.Map                          (elems)
 import           Data.Monoid                       ((<>))
 import           Pipes
 
 import           Elescore.Common.EventLog
 import           Elescore.Common.Types
 import           Elescore.Disruptions.StationCache
-import           Elescore.Notifications
 import           Elescore.Remote
 import           Elescore.Types
-import           Elescore.Users.Types
 
 elepipe :: [DisruptionEvent] -> Elescore ()
 elepipe devs = do
@@ -26,7 +23,7 @@ elepipe devs = do
 
   runEffect (each devs >-> disruptionsStatePipe dis >-> ioRefConsumer disRef)
 
-  let disEventP    = disruptionProducer 10 >-> disruptionEventPipe dis >-> eventLogPipe >-> printPipe >-> notificationPipe >-> disruptionsStatePipe dis >-> ioRefConsumer disRef
+  let disEventP    = disruptionProducer 10 >-> disruptionEventPipe dis >-> eventLogPipe >-> printPipe >-> disruptionsStatePipe dis >-> ioRefConsumer disRef
       facilityP    = facilityProducer 3600 >-> stationFetchingPipe 5 >-> stationCacheConsumer
 
   elepar [runEffect disEventP,
@@ -72,25 +69,6 @@ eventLogPipe = forever $ do
     fp <- opts optEventLog
     liftIO (appendLog fp dev)
   yield dev
-
-notificationPipe :: Pipe DisruptionEvent DisruptionEvent Elescore ()
-notificationPipe = forever $ do
-  dev <- await
-  lift (notifyAboutEventIfNecessary dev)
-  yield dev
-
-  where
-    notifyAboutEventIfNecessary :: DisruptionEvent -> Elescore ()
-    notifyAboutEventIfNecessary (DisruptionEvent dis New) = do
-      ss <- stations
-      let ms = lookup (disStationId dis) ss
-          mf = lookup (disFacilityId dis) . sFacilities =<< ms
-      subscribedUsers <- userWatchingFacility (disFacilityId dis) . elems <$> (liftIO . readTVarIO =<< users)
-      mapM_ (liftIO . notifyAboutDisruption dis ms mf) subscribedUsers
-    notifyAboutEventIfNecessary DisruptionEvent {} = return ()
-
-    userWatchingFacility :: FacilityId -> [User] -> [User]
-    userWatchingFacility fid = filter (elem fid . uWatchingFacilities)
 
 disruptionsStatePipe :: Disruptions -> Pipe DisruptionEvent Disruptions Elescore ()
 disruptionsStatePipe = go

@@ -1,8 +1,8 @@
--- This file has been generated from package.yaml by hpack version 0.20.0.
+-- This file has been generated from package.yaml by hpack version 0.28.2.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 936fd55185935883fc7e54011d6866d3be7e54836e82d0ac543fe5b9325d7bfe
+-- hash: f46c021fc8427ac07afd09be703b94316b21af4d628368fa9ad8f85927d01328
 
 name:           elescore
 version:        0.1.0.0
@@ -16,7 +16,6 @@ license:        BSD3
 license-file:   LICENSE
 build-type:     Simple
 cabal-version:  >= 1.10
-
 extra-source-files:
     README.md
 
@@ -53,8 +52,6 @@ library
     , pipes-concurrency
     , pwstore-fast
     , servant
-    , servant-auth
-    , servant-auth-server
     , servant-client
     , servant-server
     , text
@@ -64,20 +61,16 @@ library
       Elescore
       Elescore.Api
       Elescore.Api.Handler.Data
-      Elescore.Api.Handler.User
       Elescore.Api.Types
       Elescore.Common.EventLog
       Elescore.Common.Types
       Elescore.Disruptions.StationCache
-      Elescore.Notifications
       Elescore.Pipeline
       Elescore.Remote
       Elescore.Remote.Client
       Elescore.Remote.Monitoring
       Elescore.Remote.Types
       Elescore.Types
-      Elescore.Users.Registration
-      Elescore.Users.Types
   other-modules:
       Paths_elescore
   default-language: Haskell2010

@@ -8,7 +8,6 @@ copyright:           "2017 Philipp Maier"
 
 extra-source-files:
 - README.md
-- ChangeLog.md
 
 # Metadata used when publishing your package
 # synopsis:            Short description of your package
@@ -45,8 +44,6 @@ library:
   - pipes
   - pipes-concurrency
   - servant
-  - servant-auth
-  - servant-auth-server
   - servant-client
   - servant-server
   - text

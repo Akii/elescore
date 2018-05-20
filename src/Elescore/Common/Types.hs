@@ -10,14 +10,9 @@ import           Data.Aeson.Types                 (FromJSONKey (..),
                                                    ToJSONKeyFunction (ToJSONKeyText))
 import           Data.UUID
 import           Data.UUID.V4                     (nextRandom)
-import           Servant.Auth.Server.Internal.JWT
 
 newtype DisruptionId = DisruptionId
   { getDisruptionId :: UUID
-  } deriving (Eq, Ord, Show)
-
-newtype UserId = UserId
-  { getUserId :: UUID
   } deriving (Eq, Ord, Show)
 
 newtype StationId = StationId
@@ -59,14 +54,11 @@ data Point = Point !Double !Double
 nextDisruptionId :: MonadIO m => m DisruptionId
 nextDisruptionId = DisruptionId <$> liftIO nextRandom
 
-nextUserId :: MonadIO m => m UserId
-nextUserId = UserId <$> liftIO nextRandom
-
 -- JSON instances
 
 concat <$> mapM
   (deriveJSON defaultOptions {unwrapUnaryRecords = True})
-  [''UserId, ''StationId, ''FacilityId, ''DisruptionId]
+  [''StationId, ''FacilityId, ''DisruptionId]
 
 concat <$> mapM
   (deriveJSON defaultOptions)
@@ -89,15 +81,3 @@ instance ToJSONKey FacilityId where
     where
       f (FacilityId i) = tshow i
       g = text . f
-
-instance FromJSONKey UserId where
-  fromJSONKey = UserId <$> fromJSONKey
-
-instance ToJSONKey UserId where
-  toJSONKey = ToJSONKeyText f g
-    where
-      f (UserId i) = tshow i
-      g = text . f
-
-instance FromJWT UserId
-instance ToJWT UserId
