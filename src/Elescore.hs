@@ -1,31 +1,32 @@
 module Elescore
   ( run
-  , parseOptions
   ) where
 
 import           ClassyPrelude
-import           Network.HTTP.Client               (newManager)
-import           Network.HTTP.Client.TLS           (tlsManagerSettings)
-import           System.IO                         (BufferMode (LineBuffering),
-                                                    stdout)
+import           System.Signal
+import           Prelude           (read)
+import           System.IO         (BufferMode (LineBuffering), stdout)
 
-import           Elescore.Api                      (eleapi)
-import           Elescore.Common.EventLog          (loadLog)
-import           Elescore.Disruptions.StationCache (loadStations)
-import           Elescore.Pipeline                 (elepipe)
-import           Elescore.Remote.Monitoring        (replayEvents)
-import           Elescore.Types                    (Opts (..), mkEnv,
-                                                    parseOptions, runElescore)
+import           Elescore.Api      (eleapi)
+import           Elescore.Pipeline (elepipe)
+import           Elescore.Types    (mkEnv, runElescore)
 
-run :: Opts -> IO ()
-run o = do
+run :: FilePath -> IO ()
+run cfgFile = do
   hSetBuffering stdout LineBuffering
-  putStrLn "Starting Elescore v1"
+  putStrLn "Starting Elescore v2"
 
-  devs <- loadLog (optEventLog o)
-  sc <- loadStations (optStationCache o)
-  mgr <- newManager tlsManagerSettings
-  env <- mkEnv o mgr (replayEvents devs) sc
+  cfg <- read . unpack <$> readFileUtf8 cfgFile
+  env <- mkEnv cfg
 
-  _ <- async $ runElescore env eleapi
-  runElescore env (elepipe devs)
+  api <- async $ runElescore env eleapi
+  pipe <- runElescore env elepipe
+
+  installHandler sigINT (const $ shutdown api pipe)
+  installHandler sigTERM (const $ shutdown api pipe)
+
+  void (waitCatch api)
+  void (waitCatch pipe)
+
+  where
+    shutdown api pipe = cancel api >> cancel pipe

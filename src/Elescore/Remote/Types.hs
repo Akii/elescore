@@ -8,88 +8,48 @@ module Elescore.Remote.Types where
 import           ClassyPrelude
 import           Data.Aeson
 import           Data.Aeson.TH
-import           Data.Aeson.Types      (Parser)
 import           Servant
 
-import           Elescore.Common.Types
+data Station = Station
+  { sstationnumber :: Integer
+  , sname          :: Text
+  , sfacilities    :: Maybe [Facility]
+  } deriving (Show)
 
-type Disruptions = Map FacilityId Disruption
+data Facility = Facility
+  { fequipmentnumber  :: Integer
+  , ftype             :: Text
+  , fdescription      :: Maybe Text
+  , fgeocoordX        :: Maybe Double
+  , fgeocoordY        :: Maybe Double
+  , fstate            :: FacilityState
+  , fstateExplanation :: Maybe Text
+  , fstationnumber    :: Integer
+  } deriving (Show)
 
-data Change
-  = New
-  | Updated
-  | Deleted
-  deriving (Show, Eq)
+data FacilityState
+  = Active
+  | Inactive
+  | Unknown
+  deriving (Eq, Show)
 
-data DisruptionEvent = DisruptionEvent
-  { devDisruption :: !Disruption
-  , devChange     :: !Change
-  }
+instance FromJSON FacilityState where
+  parseJSON = withText "the state" $ \s -> return $
+    case s of
+      "ACTIVE"   -> Active
+      "INACTIVE" -> Inactive
+      _          -> Unknown
 
-data Disruption = Disruption
-  { disFacilityId    :: FacilityId
-  , disStationId     :: StationId
-  , disFacilityState :: FacilityState
-  , disReason        :: Maybe Text
-  } deriving (Eq, Show)
+concat <$> mapM
+  (deriveFromJSON defaultOptions { fieldLabelModifier = drop 1 })
+  [''Station, ''Facility]
 
-newtype Remote a = Remote
-  { unRemote :: a
-  }
+instance ToHttpApiData FacilityState where
+  toQueryParam Active   = "ACTIVE"
+  toQueryParam Inactive = "INACTIVE"
+  toQueryParam Unknown  = "UNKNOWN"
 
-instance FromJSON (Remote Station) where
-  parseJSON = withObject "the station" $ \o -> do
-    sId <- StationId <$> (o .: "stationnumber")
-    sName <- o .: "name"
-    sFacilities <- foldr (liftA2 insertMap fId id . unRemote) mempty <$> (o .: "facilities" :: Parser [Remote Facility])
-
-    return . Remote $ Station {..}
-
-instance FromJSON (Remote Facility) where
-  parseJSON = withObject "the facility" $ \o -> do
-    fId <- FacilityId <$> (o .: "equipmentnumber")
-    fStationId <- StationId <$> (o .: "stationnumber")
-    fType <- remoteFacilityType =<< o .: "type"
-    fDescription <- o .:? "description"
-    fGeoCoordinates <- remoteGeoCoordinate o
-
-    return . Remote $ Facility {..}
-
-    where
-      remoteGeoCoordinate :: Object -> Parser (Maybe Point)
-      remoteGeoCoordinate o = do
-        latitude <- o .:? "geocoordX"
-        longitude <- o .:? "geocoordY"
-        return $ liftA2 Point latitude longitude
-
-instance FromJSON (Remote Disruption) where
-  parseJSON = withObject "the disruption" $ \o -> do
-    disFacilityId <- FacilityId <$> (o .: "equipmentnumber")
-    disStationId <- StationId <$> (o .: "stationnumber")
-    disFacilityState <- remoteFacilityState =<< o .: "state"
-    disReason <- o .:? "stateExplanation"
-
-    return . Remote $ Disruption {..}
-
-remoteFacilityType :: Value -> Parser FacilityType
-remoteFacilityType = withText "the type" $ \s ->
-  return $ if s == "ELEVATOR"
-           then Elevator
-           else Escalator
-
-remoteFacilityState :: Value -> Parser FacilityState
-remoteFacilityState = withText "the state" $ \s ->
-  return $ case s of
-    "ACTIVE"   -> Active
-    "INACTIVE" -> Inactive
-    _          -> Unknown
-
-instance ToHttpApiData (Remote FacilityState) where
-  toQueryParam (Remote Active)   = "ACTIVE"
-  toQueryParam (Remote Inactive) = "INACTIVE"
-  toQueryParam (Remote Unknown)  = "UNKNOWN"
-
-instance ToHttpApiData [Remote FacilityState] where
+instance ToHttpApiData [FacilityState] where
   toQueryParam = intercalate "," . fmap toQueryParam
 
 newtype ApiKey =
@@ -103,6 +63,3 @@ instance ToHttpApiData ApiKey where
   toHeader (ApiKey key) = encodeUtf8 ("Bearer " <> key)
   toQueryParam (ApiKey key) = key
 
-deriveJSON defaultOptions ''Disruption
-deriveJSON defaultOptions ''DisruptionEvent
-deriveJSON defaultOptions ''Change

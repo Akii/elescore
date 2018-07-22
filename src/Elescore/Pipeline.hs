@@ -1,56 +1,71 @@
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 module Elescore.Pipeline
   ( elepipe
   ) where
 
-import           ClassyPrelude                     hiding ((<>))
-import           Control.Concurrent                (threadDelay)
-import           Data.Aeson                        (encode)
-import           Data.Monoid                       ((<>))
+import           ClassyPrelude                 hiding ((<>))
+import           Control.Concurrent            (threadDelay)
+import           Data.Monoid                   ((<>))
 import           Pipes
 
-import           Elescore.Common.EventLog
-import           Elescore.Common.Types
-import           Elescore.Disruptions.StationCache
-import           Elescore.Remote
+import           Elescore.Domain
+import           Elescore.Domain.DisruptionLog (DisruptionRepo (appendEvent, findAll))
+import qualified Elescore.Domain.Station       as S
+import           Elescore.Remote               (fetchDisruptedFacilities,
+                                                fetchFacilities, fetchStation,
+                                                mapDisruption, mapFacility,
+                                                mapStation, runAPI)
 import           Elescore.Types
 
-elepipe :: [DisruptionEvent] -> Elescore ()
-elepipe devs = do
-  disRef <- currDisruptionsRef
-  dis <- liftIO (readIORef disRef)
+elepipe :: Elescore (Async ())
+elepipe = do
+  drepo <- disruptionRepo
+  disRef <- disruptions
+  dis <- replayEvents <$> findAll drepo
 
-  runEffect (each devs >-> disruptionsStatePipe dis >-> ioRefConsumer disRef)
+  let disEventP    = disruptedFacilitiesProducer 10
+                     >-> disruptionEventPipe dis
+                     >-> eventLogPipe
+                     >-> printPipe
+                     >-> disruptionsStatePipe dis
+                     >-> ioRefConsumer disRef
 
-  let disEventP    = disruptionProducer 10 >-> disruptionEventPipe dis >-> eventLogPipe >-> printPipe >-> disruptionsStatePipe dis >-> ioRefConsumer disRef
-      facilityP    = facilityProducer 3600 >-> stationFetchingPipe 5 >-> stationCacheConsumer
+      facilityP    = facilityProducer 3600
+                     >-> stationFetchingPipe 5
+                     >-> stationConsumer
 
   elepar [runEffect disEventP,
           runEffect facilityP]
 
-disruptionProducer :: Int -> Producer Disruptions Elescore ()
-disruptionProducer delay = forever $ do
-  diss <- lift (runAPI fetchDisruptions)
-  either print (yield . toDisruptions) diss
+disruptedFacilitiesProducer :: Int -> Producer Disruptions Elescore ()
+disruptedFacilitiesProducer delay = forever $ do
+  fs <- lift (runAPI fetchDisruptedFacilities)
+  either print (yield . replayDisruptions . fmap mapDisruption) fs
   waitSeconds delay
-  where
-    toDisruptions = foldr (liftA2 insertMap disFacilityId id) mempty
 
 facilityProducer :: Int -> Producer Facility Elescore ()
 facilityProducer delay = forever $ do
-  fs <- lift (runAPI fetchFacilities)
-  either print (mapM_ yield) fs
+  fs <- lift (runAPI $ fetchFacilities Nothing)
+  either print (mapM_ (yield . mapFacility)) fs
   waitSeconds delay
 
-disruptionEventPipe :: Disruptions -> Pipe Disruptions DisruptionEvent Elescore ()
+disruptionEventPipe :: Disruptions -> Pipe Disruptions (Disruption, Change) Elescore ()
 disruptionEventPipe = go
   where
     go st = do
       st' <- await
-      let evs = map (uncurry mkDisruptionEvent) (calculateChanges st st')
-      mapM_ yield evs
+      mapM_ yield (calculateChanges st st')
       go st'
+
+eventLogPipe :: Pipe (Disruption, Change) DisruptionEvent Elescore ()
+eventLogPipe = do
+  drepo <- lift disruptionRepo
+  forever $ do
+    dev <- liftIO . uncurry mkDisruptionEvent =<< await
+    liftIO (appendEvent drepo dev)
+    yield dev
 
 printPipe :: Pipe DisruptionEvent DisruptionEvent Elescore ()
 printPipe = forever $ do
@@ -60,15 +75,16 @@ printPipe = forever $ do
 
   where
     logDisruptionEvent DisruptionEvent {..} =
-      putStrLn $ "[" ++ tshow devChange ++ "] " ++ decodeUtf8 (toStrict $ encode devDisruption)
-
-eventLogPipe :: Pipe DisruptionEvent DisruptionEvent Elescore ()
-eventLogPipe = forever $ do
-  dev <- await
-  lift $ do
-    fp <- opts optEventLog
-    liftIO (appendLog fp dev)
-  yield dev
+      lift . logInfo $ mconcat
+        [ "["
+        , tshow devChange
+        , "] "
+        , tshow (getStationId devStationId)
+        , " | "
+        , tshow (getFacilityId devFacilityId)
+        , " | "
+        , tshow (fromMaybe "" devReason)
+        ]
 
 disruptionsStatePipe :: Disruptions -> Pipe DisruptionEvent Disruptions Elescore ()
 disruptionsStatePipe = go
@@ -81,28 +97,28 @@ disruptionsStatePipe = go
 
 stationFetchingPipe :: Int -> Pipe Facility Station Elescore ()
 stationFetchingPipe delay = do
-  sc <- lift stationCache
+  srepo <- lift stationRepo
   forever $ do
     f <- await
-    ms <- liftIO (getStation sc $ fStationId f)
+    ms <- liftIO (S.findById srepo $ fStationId f)
     maybe (fetchRemoteStation f) (updateFacility f) ms
 
   where
     updateFacility f s = yield (s {sFacilities = insertMap (fId f) f (sFacilities s)})
     fetchRemoteStation f = do
       waitSeconds delay
-      let sid = unStationId . fStationId $ f
-      ms <- lift . runAPI $ fetchStation sid
-      liftIO . putStrLn $ "Fetched remote station " <> tshow sid
-      either print (updateFacility f) ms
+      let sid = getStationId . fStationId $ f
+      ms <- lift $ runAPI (fetchStation sid)
+      lift . logInfo $ "Fetched remote station " <> tshow sid
+      either print (updateFacility f . mapStation) ms
 
 ioRefConsumer :: IORef a -> Consumer a Elescore ()
 ioRefConsumer ref = forever $ await >>= liftIO . writeIORef ref
 
-stationCacheConsumer :: Consumer Station Elescore ()
-stationCacheConsumer = do
-  sc <- lift stationCache
-  forever (await >>= liftIO . putStation sc)
+stationConsumer :: Consumer Station Elescore ()
+stationConsumer = do
+  srepo <- lift stationRepo
+  forever (await >>= liftIO . S.save srepo)
 
 waitSeconds :: MonadIO m => Int -> m ()
 waitSeconds = liftIO . threadDelay . (* 1000000)

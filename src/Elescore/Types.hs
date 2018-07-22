@@ -2,101 +2,83 @@
 
 module Elescore.Types where
 
-import           ClassyPrelude
+import           ClassyPrelude hiding (log)
 import           Control.Monad.Catch
-import           Network.HTTP.Client               (Manager)
-import           Options.Applicative
+import           Network.HTTP.Client     (Manager, newManager)
+import           Network.HTTP.Client.TLS (tlsManagerSettings)
+import qualified System.Logger           as Logger
+import           System.Logger.Class     hiding (info)
 
-import           Elescore.Disruptions.StationCache
-import           Elescore.Remote.Types
+import           Elescore.Database
+import           Elescore.Domain
+import           Elescore.Remote.Types   (ApiKey (..))
 
--- The Elescore Monad
+data Config = Config
+    { cfgHost     :: String
+    , cfgApiKey   :: String
+    , cfgDatabase :: String
+    , cfgPort     :: Int
+    } deriving (Read, Eq, Show)
 
 data Env = Env
-  { envOpts               :: !Opts
-  , envRequestManager     :: !Manager
-  , envCurrentDisruptions :: !(IORef Disruptions)
-  , envStations           :: !StationCache
+  { envConfig         :: Config
+  , envLogger         :: Logger
+  , envRequestManager :: Manager
+  , envStationRepo    :: StationRepo
+  , envDisruptionRepo :: DisruptionRepo
+  , envDisruptions    :: IORef Disruptions
   }
 
 newtype Elescore a = Elescore
   { elescore :: ReaderT Env IO a
-  } deriving (Functor, Applicative, Monad, MonadIO, MonadThrow, MonadCatch, MonadMask)
+  } deriving ( Functor
+             , Applicative
+             , Monad
+             , MonadReader Env
+             , MonadIO
+             , MonadThrow
+             , MonadCatch
+             , MonadMask
+             )
 
-mkEnv :: Opts -> Manager -> Disruptions -> StationCache -> IO Env
-mkEnv o m d sc = do
-  disRef <- newIORef d
-  return (Env o m disRef sc)
+instance MonadLogger Elescore where
+  log l m = Elescore $ do
+    lg <- asks envLogger
+    liftIO $ Logger.log lg l m
+
+mkEnv :: Config -> IO Env
+mkEnv c = do
+  mgr <- newManager tlsManagerSettings
+  conn <- mkConnection (cfgDatabase c)
+  diss <- newIORef mempty
+  lg <- new (setOutput StdOut defSettings)
+  return $ Env c lg mgr (mkStationRepo conn) (mkDisruptionRepo conn) diss
 
 runElescore :: Env -> Elescore a -> IO a
 runElescore env e = runReaderT (elescore e) env
 
-elepar :: Monoid a => [Elescore a] -> Elescore a
-elepar es = Elescore $ do
+elepar :: Monoid a => [Elescore a] -> Elescore (Async a)
+elepar es = do
   env <- ask
-  as <- liftIO $ mapM (async . runElescore env) es
-  mconcat <$> mapM waitAsync as
+  liftIO . async $ mconcat <$> mapConcurrently (runElescore env) es
 
 apiKey :: Elescore ApiKey
-apiKey = Elescore $ asks (fromString . optApiKey . envOpts)
+apiKey = Elescore $ asks (fromString . cfgApiKey . envConfig)
 
 reqManager :: Elescore Manager
 reqManager = Elescore $ asks envRequestManager
 
-currDisruptionsRef :: Elescore (IORef Disruptions)
-currDisruptionsRef = Elescore $ asks envCurrentDisruptions
+disruptionRepo :: Elescore DisruptionRepo
+disruptionRepo = Elescore $ asks envDisruptionRepo
 
-stationCache :: Elescore StationCache
-stationCache = Elescore $ asks envStations
+disruptions :: Elescore (IORef Disruptions)
+disruptions = Elescore $ asks envDisruptions
 
-stations :: Elescore Stations
-stations = liftIO . getStations =<< stationCache
+stationRepo :: Elescore StationRepo
+stationRepo = Elescore $ asks envStationRepo
 
-opts :: (Opts -> a) -> Elescore a
-opts f = Elescore $ asks (f . envOpts)
+config :: (Config -> a) -> Elescore a
+config f = Elescore $ asks (f . envConfig)
 
--- CMD line options
-
-data Opts = Opts
-    { optHost         :: !String
-    , optApiKey       :: !String
-    , optEventLog     :: !String
-    , optStationCache :: !String
-    , optPort         :: !Int
-    } deriving (Eq, Show)
-
-parseOptions :: IO Opts
-parseOptions = execParser (info (helper <*> optsParser) desc)
-  where
-    desc = header "Elescore - Elevator and escalator disruption scoring service" <> fullDesc
-
-    optsParser :: Parser Opts
-    optsParser = Opts
-        <$> (strOption $
-                long "host"
-                <> metavar "HOSTNAME"
-                <> help "DB Open Data API host"
-                <> value "api.deutschebahn.com")
-
-        <*> (strOption $
-                long "api-key"
-                <> metavar "APIKEY"
-                <> help "Api key for authentication")
-
-        <*> (strOption $
-                long "event-log"
-                <> metavar "EVENTLOG"
-                <> help "File where the disruption events are appended to"
-                <> value "./event.log")
-
-        <*> (strOption $
-                long "station-cache"
-                <> metavar "STATIONCACHE"
-                <> help "File where the station queries are cached"
-                <> value "./station.cache")
-
-        <*> (option auto $
-                long "port"
-                <> metavar "PORT"
-                <> help "Port for the frontend services"
-                <> value 8000)
+logInfo :: MonadLogger m => Text -> m ()
+logInfo = log Logger.Info . Logger.msg

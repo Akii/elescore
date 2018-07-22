@@ -2,10 +2,10 @@
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: f46c021fc8427ac07afd09be703b94316b21af4d628368fa9ad8f85927d01328
+-- hash: 8eebb6a478177dea2788f8a370d89037b28634b7f3c3fa9c7087208485d420c4
 
 name:           elescore
-version:        0.1.0.0
+version:        2.0.0.0
 description:    Please see the README on Github at <https://github.com/akii/elescore#readme>
 homepage:       https://github.com/akii/elescore#readme
 bug-reports:    https://github.com/akii/elescore/issues
@@ -24,6 +24,25 @@ source-repository head
   location: https://github.com/akii/elescore
 
 library
+  exposed-modules:
+      Elescore
+      Elescore.Api
+      Elescore.Api.Data
+      Elescore.Api.Types
+      Elescore.Database
+      Elescore.Domain
+      Elescore.Domain.DisruptionLog
+      Elescore.Domain.Monitoring
+      Elescore.Domain.Station
+      Elescore.Domain.Types
+      Elescore.Pipeline
+      Elescore.Remote
+      Elescore.Remote.Client
+      Elescore.Remote.Mapping
+      Elescore.Remote.Types
+      Elescore.Types
+  other-modules:
+      Paths_elescore
   hs-source-dirs:
       src
   default-extensions: NoImplicitPrelude OverloadedStrings
@@ -33,56 +52,38 @@ library
     , async
     , attoparsec
     , base >=4.7 && <5
-    , base16-bytestring
     , bytestring
     , classy-prelude
     , containers
-    , cryptonite
     , datetime
-    , email-validate
     , exceptions
     , free
     , http-api-data
     , http-client
     , http-client-tls
-    , mime-mail
     , mtl
-    , optparse-applicative
     , pipes
     , pipes-concurrency
-    , pwstore-fast
+    , raw-strings-qq
     , servant
     , servant-client
     , servant-server
+    , signal
+    , sqlite-simple
     , text
+    , tinylog
     , uuid
     , warp
-  exposed-modules:
-      Elescore
-      Elescore.Api
-      Elescore.Api.Handler.Data
-      Elescore.Api.Types
-      Elescore.Common.EventLog
-      Elescore.Common.Types
-      Elescore.Disruptions.StationCache
-      Elescore.Pipeline
-      Elescore.Remote
-      Elescore.Remote.Client
-      Elescore.Remote.Monitoring
-      Elescore.Remote.Types
-      Elescore.Types
-  other-modules:
-      Paths_elescore
   default-language: Haskell2010
 
 executable elescore-exe
   main-is: Main.hs
+  other-modules:
+      Paths_elescore
   hs-source-dirs:
       app
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base >=4.7 && <5
     , elescore
-  other-modules:
-      Paths_elescore
   default-language: Haskell2010

@@ -6,9 +6,8 @@ module Elescore.Api.Types where
 import           ClassyPrelude
 import           Data.Aeson.TH
 
-import           Elescore.Common.Types
-import           Elescore.Disruptions.StationCache
-import           Elescore.Remote.Types
+import           Elescore.Domain.Station
+import           Elescore.Domain.Types
 
 data UIDisruption = UIDisruption
   { uidStationId      :: !StationId
@@ -19,9 +18,9 @@ data UIDisruption = UIDisruption
   , uidGeoCoordinates :: !(Maybe Point)
   }
 
-mkUIDisruption :: StationCache -> Disruption -> IO UIDisruption
-mkUIDisruption sc Disruption {..} = do
-  ms <- getStation sc disStationId
+mkUIDisruption :: StationRepo -> Disruption -> IO UIDisruption
+mkUIDisruption srepo Disruption {..} = do
+  ms <- findById srepo disStationId
 
   let mf = lookup disFacilityId =<< fmap sFacilities ms
       uidStationId = disStationId

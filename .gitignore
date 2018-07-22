@@ -9,3 +9,5 @@ Goal.txt
 static/*
 ideas
 result
+persistent/*
+config/local.cfg

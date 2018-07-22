@@ -3,9 +3,9 @@
 
 module Elescore.Remote.Client
   ( API
+  , fetchDisruptedFacilities
   , fetchFacilities
   , fetchFacility
-  , fetchDisruptions
   , fetchStation
   ) where
 
@@ -15,7 +15,6 @@ import           Network.HTTP.Client     (Manager)
 import           Servant.API
 import           Servant.Client
 
-import           Elescore.Common.Types
 import           Elescore.Remote.Types
 
 type Host = String
@@ -23,34 +22,32 @@ type API a = ReaderT (ApiKey, Manager, Host) IO a
 
 type FaStaAPI = "fasta" :> "v2" :> (FacilitiesAPI :<|> StationAPI)
 
-type FacilitiesAPI = "facilities" :> Header "Authorization" ApiKey :> Get '[JSON] [Remote Facility]
-                :<|> "facilities" :> Header "Authorization" ApiKey :> QueryParam "state" [Remote FacilityState] :> Get '[JSON] [Remote Disruption]
-                :<|> "facilities" :> Header "Authorization" ApiKey :> Capture "facility id" Int :> Get '[JSON] (Remote Facility)
+type FacilitiesAPI = "facilities" :> Header "Authorization" ApiKey :> QueryParam "state" [FacilityState] :> Get '[JSON] [Facility]
+                :<|> "facilities" :> Header "Authorization" ApiKey :> Capture "facility id" Integer :> Get '[JSON] Facility
 
-type StationAPI = "stations" :> Header "Authorization" ApiKey :> Capture "station id" Int :> Get '[JSON] (Remote Station)
+type StationAPI = "stations" :> Header "Authorization" ApiKey :> Capture "station id" Integer :> Get '[JSON] Station
 
-fetchFacilities :: API (Either ServantError [Facility])
-fetchFacilities = (fmap . fmap . fmap) unRemote (makeRequest facilities)
+fetchDisruptedFacilities :: API (Either ServantError [Facility])
+fetchDisruptedFacilities = fetchFacilities (Just [Inactive, Unknown])
 
-fetchDisruptions :: API (Either ServantError [Disruption])
-fetchDisruptions = (fmap . fmap . fmap) unRemote . makeRequest . flip disruptions . Just $ [Remote Inactive, Remote Unknown]
+fetchFacilities :: Maybe [FacilityState] -> API (Either ServantError [Facility])
+fetchFacilities = makeRequest . flip facilities
 
-fetchFacility :: Int -> API (Either ServantError Facility)
-fetchFacility fid = fmap unRemote <$> makeRequest (`facility` fid)
+fetchFacility :: Integer -> API (Either ServantError Facility)
+fetchFacility fid = makeRequest (`facility` fid)
 
-fetchStation :: Int -> API (Either ServantError Station)
-fetchStation sid = fmap unRemote <$> makeRequest (`station` sid)
+fetchStation :: Integer -> API (Either ServantError Station)
+fetchStation sid = makeRequest (`station` sid)
 
 makeRequest :: (Maybe ApiKey -> ClientM a) -> API (Either ServantError a)
 makeRequest c = do
   (key, mgr, h) <- ask
   liftIO $ runClientM (c $ Just key) (ClientEnv mgr (BaseUrl Https h 443 "") Nothing)
 
-facilities :: Maybe ApiKey -> ClientM [Remote Facility]
-disruptions :: Maybe ApiKey -> Maybe [Remote FacilityState] -> ClientM [Remote Disruption]
-facility :: Maybe ApiKey -> Int -> ClientM (Remote Facility)
-station :: Maybe ApiKey -> Int -> ClientM (Remote Station)
-((facilities :<|> disruptions :<|> facility) :<|> station) = client api
+facilities :: Maybe ApiKey -> Maybe [FacilityState] -> ClientM [Facility]
+facility :: Maybe ApiKey -> Integer -> ClientM Facility
+station :: Maybe ApiKey -> Integer -> ClientM Station
+((facilities :<|> facility) :<|> station) = client api
 
 api :: Proxy FaStaAPI
 api = Proxy

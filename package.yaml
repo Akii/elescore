@@ -1,5 +1,5 @@
 name:                elescore
-version:             0.1.0.0
+version:             2.0.0.0
 github:              "akii/elescore"
 license:             BSD3
 author:              "Philipp Maier"
@@ -32,31 +32,29 @@ library:
   - base >= 4.7 && < 5
   - aeson
   - async
+  - attoparsec
   - bytestring
   - classy-prelude
   - containers
   - datetime
   - exceptions
+  - free
   - http-api-data
   - http-client
   - http-client-tls
-  - optparse-applicative
+  - mtl
   - pipes
   - pipes-concurrency
+  - raw-strings-qq
   - servant
   - servant-client
   - servant-server
+  - signal
+  - sqlite-simple
   - text
+  - tinylog
   - uuid
   - warp
-  - pwstore-fast
-  - email-validate
-  - attoparsec
-  - cryptonite
-  - mtl
-  - mime-mail
-  - base16-bytestring
-  - free
 
 executables:
   elescore-exe:

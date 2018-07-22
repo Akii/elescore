@@ -7,24 +7,22 @@ module Elescore.Api
 
 import           ClassyPrelude
 import           Data.Proxy
-import           Network.Wai.Handler.Warp            (run)
+import           Network.Wai.Handler.Warp  (run)
 import           Servant.API
 import           Servant.Server
 
-import           Elescore.Api.Handler.Data
-import           Elescore.Types                      (Elescore, Opts (..),
-                                                      currDisruptionsRef,opts,
-                                                      stationCache)
+import           Elescore.Api.Data
+import           Elescore.Types
 
 type API = "api" :> DataApi
 
 eleapi :: Elescore ()
 eleapi = do
-  disRef <- currDisruptionsRef
-  sc <- stationCache
-  port <- opts optPort
+  srepo <- stationRepo
+  port <- config cfgPort
+  diss <- disruptions
 
-  liftIO . run port $ serve api (dataServer disRef sc)
+  liftIO . run port $ serve api (dataServer diss srepo)
 
   where
     api :: Proxy API
