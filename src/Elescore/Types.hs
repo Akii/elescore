@@ -2,16 +2,18 @@
 
 module Elescore.Types where
 
-import           ClassyPrelude hiding (log)
+import           ClassyPrelude                     hiding (log)
 import           Control.Monad.Catch
-import           Network.HTTP.Client     (Manager, newManager)
-import           Network.HTTP.Client.TLS (tlsManagerSettings)
-import qualified System.Logger           as Logger
-import           System.Logger.Class     hiding (info)
+import           Network.HTTP.Client               (Manager, newManager)
+import           Network.HTTP.Client.TLS           (tlsManagerSettings)
+import qualified System.Logger                     as Logger
+import           System.Logger.Class               hiding (info)
 
+import           Elescore.Api.DisruptionProjection (DisruptionProjection,
+                                                    emptyDisruptionProjection)
 import           Elescore.Database
 import           Elescore.Domain
-import           Elescore.Remote.Types   (ApiKey (..))
+import           Elescore.Remote.Types             (ApiKey (..))
 
 data Config = Config
     { cfgHost     :: String
@@ -26,7 +28,7 @@ data Env = Env
   , envRequestManager :: Manager
   , envStationRepo    :: StationRepo
   , envDisruptionRepo :: DisruptionRepo
-  , envDisruptions    :: IORef Disruptions
+  , envDisruptions    :: IORef DisruptionProjection
   }
 
 newtype Elescore a = Elescore
@@ -50,7 +52,7 @@ mkEnv :: Config -> IO Env
 mkEnv c = do
   mgr <- newManager tlsManagerSettings
   conn <- mkConnection (cfgDatabase c)
-  diss <- newIORef mempty
+  diss <- newIORef emptyDisruptionProjection
   lg <- new (setOutput StdOut defSettings)
   return $ Env c lg mgr (mkStationRepo conn) (mkDisruptionRepo conn) diss
 
@@ -71,7 +73,7 @@ reqManager = Elescore $ asks envRequestManager
 disruptionRepo :: Elescore DisruptionRepo
 disruptionRepo = Elescore $ asks envDisruptionRepo
 
-disruptions :: Elescore (IORef Disruptions)
+disruptions :: Elescore (IORef DisruptionProjection)
 disruptions = Elescore $ asks envDisruptions
 
 stationRepo :: Elescore StationRepo

@@ -2,10 +2,10 @@
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 8eebb6a478177dea2788f8a370d89037b28634b7f3c3fa9c7087208485d420c4
+-- hash: 0e6f78074c3921dbcf7483ea910607a4c99545ae3102b6441028208eac11aaa1
 
 name:           elescore
-version:        2.0.0.0
+version:        2.1.0.0
 description:    Please see the README on Github at <https://github.com/akii/elescore#readme>
 homepage:       https://github.com/akii/elescore#readme
 bug-reports:    https://github.com/akii/elescore/issues
@@ -28,7 +28,7 @@ library
       Elescore
       Elescore.Api
       Elescore.Api.Data
-      Elescore.Api.Types
+      Elescore.Api.DisruptionProjection
       Elescore.Database
       Elescore.Domain
       Elescore.Domain.DisruptionLog

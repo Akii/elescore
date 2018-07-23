@@ -3,15 +3,17 @@
 
 module Elescore.Api
   ( eleapi
+  , module Elescore.Api.DisruptionProjection
   ) where
 
 import           ClassyPrelude
 import           Data.Proxy
-import           Network.Wai.Handler.Warp  (run)
+import           Network.Wai.Handler.Warp          (run)
 import           Servant.API
 import           Servant.Server
 
 import           Elescore.Api.Data
+import           Elescore.Api.DisruptionProjection
 import           Elescore.Types
 
 type API = "api" :> DataApi

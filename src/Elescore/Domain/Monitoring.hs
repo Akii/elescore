@@ -36,7 +36,7 @@ calculateChanges d1 d2 =
     updated = filterWithKey (elemChanged d2) d1
     resolved = differenceMap d1 d2 -- contains all elements from d1 that do not exist in d2
   in
-    toChangePair new New ++ toChangePair updated Updated ++ toChangePair resolved Resolved
+    toChangePair new New ++ toChangePair updated Updated ++ activeFacilityState (toChangePair resolved Resolved)
   where
     toChangePair :: Map FacilityId Disruption -> Change -> [(Disruption, Change)]
     toChangePair ds c = fmap ((,) <$> id <*> pure c) (elems ds)
@@ -46,3 +46,6 @@ calculateChanges d1 d2 =
       case lookup k m of
         Nothing -> False
         Just a' -> a /= a'
+
+    activeFacilityState :: [(Disruption, Change)] -> [(Disruption, Change)]
+    activeFacilityState = fmap (\(d,c) -> (d { disFacilityState = Active, disReason = Nothing }, c))

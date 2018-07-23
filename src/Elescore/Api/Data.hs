@@ -6,29 +6,32 @@ module Elescore.Api.Data
   , dataServer
   ) where
 
-import           ClassyPrelude           hiding (Handler)
-import           Data.Map                (elems)
+import           ClassyPrelude                     hiding (Handler)
+import           Data.IntMap                       (elems)
 import           Servant
 
-import           Elescore.Api.Types
-import           Elescore.Domain
-import           Elescore.Domain.Station (findAll)
+import           Elescore.Api.DisruptionProjection
+import           Elescore.Domain                   (Station)
+import           Elescore.Domain.Station           (StationRepo, findAll)
 
 type DataApi =
        "disruptions" :> DisruptionApi
   :<|> "stations" :> Get '[JSON] [Station]
 
-type DisruptionApi = "current" :> Get '[JSON] [UIDisruption]
+type DisruptionApi =
+       "all" :> Get '[JSON] [Disruption]
+  :<|> "current" :> Get '[JSON] [Disruption]
 
-dataServer :: IORef Disruptions -> StationRepo -> Server DataApi
+dataServer :: IORef DisruptionProjection -> StationRepo -> Server DataApi
 dataServer dis sr =
-  currentDisruptionsHandler dis sr
+  (allDisruptionsHandler dis :<|> currentDisruptionsHandler dis)
   :<|> listStationsHandler sr
 
-currentDisruptionsHandler :: IORef Disruptions -> StationRepo -> Handler [UIDisruption]
-currentDisruptionsHandler dis srepo = liftIO $ do
-  diss <- elems <$> readIORef dis
-  mapM (mkUIDisruption srepo) diss
+allDisruptionsHandler :: IORef DisruptionProjection -> Handler [Disruption]
+allDisruptionsHandler dis = liftIO $ elems . dpDisruptions <$> readIORef dis
+
+currentDisruptionsHandler :: IORef DisruptionProjection -> Handler [Disruption]
+currentDisruptionsHandler dis = liftIO $ filter (isNothing . dresolvedOn) . elems . dpDisruptions <$> readIORef dis
 
 listStationsHandler :: StationRepo -> Handler [Station]
 listStationsHandler = findAll

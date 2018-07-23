@@ -202,7 +202,7 @@ instance ToRow Facility where
 
 concat <$> mapM
   (deriveJSON defaultOptions {unwrapUnaryRecords = True})
-  [''StationId, ''FacilityId, ''DisruptionId, ''FacilityType, ''Point, ''Station, ''Facility]
+  [''StationId, ''FacilityId, ''DisruptionId, ''FacilityType, ''FacilityState, ''Point, ''Station, ''Facility]
 
 instance FromJSONKey StationId where
   fromJSONKey = StationId <$> fromJSONKey

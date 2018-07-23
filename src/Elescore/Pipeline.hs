@@ -5,31 +5,36 @@ module Elescore.Pipeline
   ( elepipe
   ) where
 
-import           ClassyPrelude                 hiding ((<>))
-import           Control.Concurrent            (threadDelay)
-import           Data.Monoid                   ((<>))
+import           ClassyPrelude                     hiding ((<>))
+import           Control.Concurrent                (threadDelay)
+import           Data.Monoid                       ((<>))
 import           Pipes
 
+import qualified Elescore.Api.DisruptionProjection as DP
 import           Elescore.Domain
-import           Elescore.Domain.DisruptionLog (DisruptionRepo (appendEvent, findAll))
-import qualified Elescore.Domain.Station       as S
-import           Elescore.Remote               (fetchDisruptedFacilities,
-                                                fetchFacilities, fetchStation,
-                                                mapDisruption, mapFacility,
-                                                mapStation, runAPI)
+import           Elescore.Domain.DisruptionLog     (DisruptionRepo (appendEvent, findAll))
+import qualified Elescore.Domain.Station           as S
+import           Elescore.Remote                   (fetchDisruptedFacilities,
+                                                    fetchFacilities,
+                                                    fetchStation, mapDisruption,
+                                                    mapFacility, mapStation,
+                                                    runAPI)
 import           Elescore.Types
 
 elepipe :: Elescore (Async ())
 elepipe = do
   drepo <- disruptionRepo
   disRef <- disruptions
-  dis <- replayEvents <$> findAll drepo
+  devs <- findAll drepo
+
+  let dis = replayEvents devs
+      dp = foldl' DP.applyEvent DP.emptyDisruptionProjection devs
 
   let disEventP    = disruptedFacilitiesProducer 10
                      >-> disruptionEventPipe dis
                      >-> eventLogPipe
                      >-> printPipe
-                     >-> disruptionsStatePipe dis
+                     >-> disruptionProjectionPipe dp
                      >-> ioRefConsumer disRef
 
       facilityP    = facilityProducer 3600
@@ -86,12 +91,12 @@ printPipe = forever $ do
         , tshow (fromMaybe "" devReason)
         ]
 
-disruptionsStatePipe :: Disruptions -> Pipe DisruptionEvent Disruptions Elescore ()
-disruptionsStatePipe = go
+disruptionProjectionPipe :: DP.DisruptionProjection -> Pipe DisruptionEvent DP.DisruptionProjection Elescore ()
+disruptionProjectionPipe = go
   where
     go st = do
       dev <- await
-      let st' = applyEvent st dev
+      let st' = DP.applyEvent st dev
       yield st'
       go st'
 
