@@ -19,7 +19,7 @@ type DataApi =
   :<|> "stations" :> Get '[JSON] [Station]
 
 type DisruptionApi =
-       "all" :> Get '[JSON] [Disruption]
+       Get '[JSON] [Disruption]
   :<|> "current" :> Get '[JSON] [Disruption]
 
 dataServer :: IORef DisruptionProjection -> StationRepo -> Server DataApi

@@ -20,7 +20,7 @@ import           Database.SQLite.Simple.ToField
 
 newtype DisruptionId = DisruptionId
   { getDisruptionId :: UUID
-  } deriving (Eq, Ord, Show)
+  } deriving (Ord, Eq, Show)
 
 newtype StationId = StationId
   { getStationId :: Integer
