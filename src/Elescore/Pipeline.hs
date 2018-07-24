@@ -10,7 +10,7 @@ import           Control.Concurrent                (threadDelay)
 import           Data.Monoid                       ((<>))
 import           Pipes
 
-import qualified Elescore.Api.DisruptionProjection as DP
+import qualified Elescore.Projection.Disruption as DP
 import           Elescore.Domain
 import           Elescore.Domain.DisruptionLog     (DisruptionRepo (appendEvent, findAll))
 import qualified Elescore.Domain.Station           as S

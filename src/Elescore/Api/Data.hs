@@ -10,7 +10,7 @@ import           ClassyPrelude                     hiding (Handler)
 import           Data.IntMap                       (elems)
 import           Servant
 
-import           Elescore.Api.DisruptionProjection
+import           Elescore.Projection.Disruption
 import           Elescore.Domain                   (Station)
 import           Elescore.Domain.Station           (StationRepo, findAll)
 

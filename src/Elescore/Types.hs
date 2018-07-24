@@ -9,7 +9,7 @@ import           Network.HTTP.Client.TLS           (tlsManagerSettings)
 import qualified System.Logger                     as Logger
 import           System.Logger.Class               hiding (info)
 
-import           Elescore.Api.DisruptionProjection (DisruptionProjection,
+import           Elescore.Projection.Disruption (DisruptionProjection,
                                                     emptyDisruptionProjection)
 import           Elescore.Database
 import           Elescore.Domain

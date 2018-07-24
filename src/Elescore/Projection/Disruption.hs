@@ -2,7 +2,7 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# OPTIONS_GHC -Wno-unused-top-binds #-}
 
-module Elescore.Api.DisruptionProjection
+module Elescore.Projection.Disruption
   ( DisruptionProjection(..)
   , Disruption(..)
   , emptyDisruptionProjection

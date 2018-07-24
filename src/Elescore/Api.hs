@@ -3,7 +3,7 @@
 
 module Elescore.Api
   ( eleapi
-  , module Elescore.Api.DisruptionProjection
+  , module Elescore.Projection.Disruption
   ) where
 
 import           ClassyPrelude
@@ -13,7 +13,7 @@ import           Servant.API
 import           Servant.Server
 
 import           Elescore.Api.Data
-import           Elescore.Api.DisruptionProjection
+import           Elescore.Projection.Disruption
 import           Elescore.Types
 
 type API = "api" :> DataApi

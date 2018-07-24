@@ -5,12 +5,13 @@
 module Elescore.Domain.Types where
 
 import           ClassyPrelude                    hiding (fromString,
-                                                   getCurrentTime)
+                                                   getCurrentTime, toLower)
 import           Data.Aeson.Encoding
 import           Data.Aeson.TH
 import           Data.Aeson.Types                 (FromJSONKey (..),
                                                    ToJSONKey (..),
                                                    ToJSONKeyFunction (ToJSONKeyText))
+import           Data.Char                        (toLower)
 import           Data.DateTime
 import           Data.UUID
 import           Data.UUID.V4                     (nextRandom)
@@ -200,9 +201,12 @@ instance ToRow Facility where
 
 -- JSON instances
 
+deriveJSON defaultOptions { fieldLabelModifier = (\(x:xs) -> toLower x : xs) . drop 1 } ''Station
+deriveJSON defaultOptions { fieldLabelModifier = (\(x:xs) -> toLower x : xs) . drop 1 } ''Facility
+
 concat <$> mapM
   (deriveJSON defaultOptions {unwrapUnaryRecords = True})
-  [''StationId, ''FacilityId, ''DisruptionId, ''FacilityType, ''FacilityState, ''Point, ''Station, ''Facility]
+  [''StationId, ''FacilityId, ''DisruptionId, ''FacilityType, ''FacilityState, ''Point]
 
 instance FromJSONKey StationId where
   fromJSONKey = StationId <$> fromJSONKey
