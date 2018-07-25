@@ -24,18 +24,20 @@ import           Elescore.Types
 elepipe :: Elescore (Async ())
 elepipe = do
   drepo <- disruptionRepo
-  disRef <- disruptions
+  dpRef <- disruptions
   devs <- findAll drepo
 
   let dis = replayEvents devs
       dp = foldl' DP.applyEvent DP.emptyDisruptionProjection devs
+
+  writeIORef dpRef dp
 
   let disEventP    = disruptedFacilitiesProducer 10
                      >-> disruptionEventPipe dis
                      >-> eventLogPipe
                      >-> printPipe
                      >-> disruptionProjectionPipe dp
-                     >-> ioRefConsumer disRef
+                     >-> ioRefConsumer dpRef
 
       facilityP    = facilityProducer 3600
                      >-> stationFetchingPipe 5
