@@ -1,16 +1,14 @@
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE TemplateHaskell #-}
-{-# OPTIONS_GHC -Wno-unused-top-binds #-}
 
 module Elescore.Projection.Disruption
   ( DisruptionProjection(..)
   , Disruption(..)
+  , Progress(..)
   , emptyDisruptionProjection
   , applyEvent
   ) where
 
 import           ClassyPrelude
-import           Data.Aeson.TH
 import           Data.DateTime
 
 import           Elescore.Domain.Types hiding (Disruption)
@@ -78,7 +76,3 @@ mkProgress DisruptionEvent {..} =
     New      -> Progress devFacilityState devReason devOccurredOn
     Updated  -> Progress devFacilityState devReason devOccurredOn
     Resolved -> Progress Active Nothing devOccurredOn
-
-concat <$> mapM
-  (deriveJSON defaultOptions {fieldLabelModifier = drop 1})
-  [''Disruption, ''Progress]
