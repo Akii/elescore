@@ -8,5 +8,5 @@ module Elescore.Domain
 import           Elescore.Domain.DisruptionLog (DisruptionRepo,
                                                 mkDisruptionRepo)
 import           Elescore.Domain.Monitoring
-import           Elescore.Domain.Station       (StationRepo, mkStationRepo)
+import           Elescore.Domain.Station       (StationRepo, mkStationRepo, mkCachedStationRepo)
 import           Elescore.Domain.Types

@@ -2,10 +2,10 @@
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 9bc4ae042fe32a1cd9807d990b85ceb307b01a835cb93c308f1053a07b421542
+-- hash: 6187abf47bb5e937b6a6a211dbe1e6613b7a1cac61a2da40af700c3dfa0aa7a2
 
 name:           elescore
-version:        2.3.0
+version:        2.3.1
 description:    Please see the README on Github at <https://github.com/akii/elescore#readme>
 homepage:       https://github.com/akii/elescore#readme
 bug-reports:    https://github.com/akii/elescore/issues

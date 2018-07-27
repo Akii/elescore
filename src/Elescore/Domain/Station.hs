@@ -4,6 +4,7 @@
 module Elescore.Domain.Station
   ( StationRepo(..)
   , mkStationRepo
+  , mkCachedStationRepo
   ) where
 
 import           ClassyPrelude
@@ -42,3 +43,28 @@ mkStationRepo conn = StationRepo {..}
     save s = liftIO $ do
       execute conn "INSERT OR REPLACE INTO station VALUES (?,?)" s
       forM_ (sFacilities s) (execute conn "INSERT OR REPLACE INTO facility VALUES (?,?,?,?,?,?)")
+
+mkCachedStationRepo :: Connection -> IO StationRepo
+mkCachedStationRepo conn = do
+  cache <- newTVarIO =<< mkStationMap <$> liftIO (findAll repo)
+  return StationRepo
+    { findAll  = findAllC cache
+    , findById = findByIdC cache
+    , save     = saveC cache
+    }
+
+  where
+    repo :: StationRepo
+    repo = mkStationRepo conn
+
+    mkStationMap :: [Station] -> Map StationId Station
+    mkStationMap = foldr (liftA2 insertMap sId id) mempty
+
+    findAllC :: MonadIO m => TVar (Map StationId Station) -> m [Station]
+    findAllC = fmap elems . readTVarIO
+
+    findByIdC :: MonadIO m => TVar (Map StationId Station) -> StationId -> m (Maybe Station)
+    findByIdC c sid = fmap (lookup sid) (readTVarIO c)
+
+    saveC :: MonadIO m => TVar (Map StationId Station) -> Station -> m ()
+    saveC cache station = save repo station >> atomically (modifyTVar' cache (insertMap (sId station) station))

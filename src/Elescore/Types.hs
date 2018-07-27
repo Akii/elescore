@@ -54,7 +54,8 @@ mkEnv c = do
   conn <- mkConnection (cfgDatabase c)
   diss <- newIORef emptyDisruptionProjection
   lg <- new (setOutput StdOut defSettings)
-  return $ Env c lg mgr (mkStationRepo conn) (mkDisruptionRepo conn) diss
+  srepo <- mkCachedStationRepo conn
+  return $ Env c lg mgr srepo (mkDisruptionRepo conn) diss
 
 runElescore :: Env -> Elescore a -> IO a
 runElescore env e = runReaderT (elescore e) env
