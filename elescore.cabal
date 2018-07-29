@@ -2,7 +2,7 @@
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 2adb9c7b8f0be6630e0fefe555ebe02afb9e8fdd234d9d2440dc745efc131515
+-- hash: ebe86fba885dd74fe3707bb5eee671340ef8e147e406825c1e857b5b543c3673
 
 name:           elescore
 version:        2.4.0
@@ -43,7 +43,6 @@ library
       Elescore.Remote.Mapping
       Elescore.Remote.Types
       Elescore.Types
-      Test
   other-modules:
       Paths_elescore
   hs-source-dirs:

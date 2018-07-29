@@ -12,7 +12,6 @@ import           Data.Aeson.TH
 import           Data.Aeson.Types                 (FromJSONKey (..),
                                                    ToJSONKey (..),
                                                    ToJSONKeyFunction (ToJSONKeyText))
-import           Data.Char                        (toLower)
 import           Data.DateTime
 import           Data.UUID
 import           Data.UUID.V4                     (nextRandom)
