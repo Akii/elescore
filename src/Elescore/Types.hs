@@ -2,18 +2,20 @@
 
 module Elescore.Types where
 
-import           ClassyPrelude                     hiding (log)
+import           ClassyPrelude                  hiding (log)
 import           Control.Monad.Catch
-import           Network.HTTP.Client               (Manager, newManager)
-import           Network.HTTP.Client.TLS           (tlsManagerSettings)
-import qualified System.Logger                     as Logger
-import           System.Logger.Class               hiding (info)
+import           Network.HTTP.Client            (Manager, newManager)
+import           Network.HTTP.Client.TLS        (tlsManagerSettings)
+import qualified System.Logger                  as Logger
+import           System.Logger.Class            hiding (info)
 
-import           Elescore.Projection.Disruption (DisruptionProjection,
-                                                    emptyDisruptionProjection)
+
 import           Elescore.Database
 import           Elescore.Domain
-import           Elescore.Remote.Types             (ApiKey (..))
+import           Elescore.Projection.Disruption (DisruptionProjection,
+                                                 emptyDisruptionProjection)
+import           Elescore.Projection.Downtime   (SumOfDowntimes)
+import           Elescore.Remote.Types          (ApiKey (..))
 
 data Config = Config
     { cfgHost     :: String
@@ -29,6 +31,7 @@ data Env = Env
   , envStationRepo    :: StationRepo
   , envDisruptionRepo :: DisruptionRepo
   , envDisruptions    :: IORef DisruptionProjection
+  , envDowntimes      :: IORef SumOfDowntimes
   }
 
 newtype Elescore a = Elescore
@@ -53,9 +56,10 @@ mkEnv c = do
   mgr <- newManager tlsManagerSettings
   conn <- mkConnection (cfgDatabase c)
   diss <- newIORef emptyDisruptionProjection
+  dtimes <- newIORef mempty
   lg <- new (setOutput StdOut defSettings)
   srepo <- mkCachedStationRepo conn
-  return $ Env c lg mgr srepo (mkDisruptionRepo conn) diss
+  return $ Env c lg mgr srepo (mkDisruptionRepo conn) diss dtimes
 
 runElescore :: Env -> Elescore a -> IO a
 runElescore env e = runReaderT (elescore e) env
@@ -76,6 +80,9 @@ disruptionRepo = Elescore $ asks envDisruptionRepo
 
 disruptions :: Elescore (IORef DisruptionProjection)
 disruptions = Elescore $ asks envDisruptions
+
+downtimes :: Elescore (IORef SumOfDowntimes)
+downtimes = Elescore $ asks envDowntimes
 
 stationRepo :: Elescore StationRepo
 stationRepo = Elescore $ asks envStationRepo

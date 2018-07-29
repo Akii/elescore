@@ -5,38 +5,37 @@ module Elescore.Pipeline
   ( elepipe
   ) where
 
-import           ClassyPrelude                     hiding ((<>))
-import           Control.Concurrent                (threadDelay)
-import           Data.Monoid                       ((<>))
+import           ClassyPrelude                  hiding (getCurrentTime, (<>))
+import           Control.Concurrent             (threadDelay)
+import           Data.DateTime
+import           Data.Monoid                    ((<>))
 import           Pipes
 
-import qualified Elescore.Projection.Disruption as DP
 import           Elescore.Domain
-import           Elescore.Domain.DisruptionLog     (DisruptionRepo (appendEvent, findAll))
-import qualified Elescore.Domain.Station           as S
-import           Elescore.Remote                   (fetchDisruptedFacilities,
-                                                    fetchFacilities,
-                                                    fetchStation, mapDisruption,
-                                                    mapFacility, mapStation,
-                                                    runAPI)
+import           Elescore.Domain.DisruptionLog  (DisruptionRepo (appendEvent, findAll))
+import qualified Elescore.Domain.Station        as S
+import qualified Elescore.Projection.Disruption as DP
+import qualified Elescore.Projection.Downtime   as DT
+import           Elescore.Remote                (fetchDisruptedFacilities,
+                                                 fetchFacilities, fetchStation,
+                                                 mapDisruption, mapFacility,
+                                                 mapStation, runAPI)
 import           Elescore.Types
 
 elepipe :: Elescore (Async ())
 elepipe = do
   drepo <- disruptionRepo
   dpRef <- disruptions
+  dtRef <- downtimes
   devs <- findAll drepo
 
-  let dis = replayEvents devs
-      dp = foldl' DP.applyEvent DP.emptyDisruptionProjection devs
-
-  writeIORef dpRef dp
+  runEffect $ each devs >-> disruptionProjectionPipe dpRef >-> ioRefConsumer dpRef
 
   let disEventP    = disruptedFacilitiesProducer 10
-                     >-> disruptionEventPipe dis
+                     >-> disruptionEventPipe (replayEvents devs)
                      >-> eventLogPipe
                      >-> printPipe
-                     >-> disruptionProjectionPipe dp
+                     >-> disruptionProjectionPipe dpRef
                      >-> ioRefConsumer dpRef
 
       facilityP    = facilityProducer 3600
@@ -44,7 +43,8 @@ elepipe = do
                      >-> stationConsumer
 
   elepar [runEffect disEventP,
-          runEffect facilityP]
+          runEffect facilityP,
+          runDowntimeProjection dtRef dpRef]
 
 disruptedFacilitiesProducer :: Int -> Producer Disruptions Elescore ()
 disruptedFacilitiesProducer delay = forever $ do
@@ -93,14 +93,25 @@ printPipe = forever $ do
         , tshow (fromMaybe "" devReason)
         ]
 
-disruptionProjectionPipe :: DP.DisruptionProjection -> Pipe DisruptionEvent DP.DisruptionProjection Elescore ()
-disruptionProjectionPipe = go
+disruptionProjectionPipe :: IORef DP.DisruptionProjection -> Pipe DisruptionEvent DP.DisruptionProjection Elescore ()
+disruptionProjectionPipe ref = readIORef ref >>= go
   where
     go st = do
       dev <- await
       let st' = DP.applyEvent st dev
       yield st'
       go st'
+
+runDowntimeProjection :: IORef DT.SumOfDowntimes -> IORef DP.DisruptionProjection -> Elescore ()
+runDowntimeProjection dtRef dpRef = forever $ do
+  currT <- liftIO getCurrentTime
+  diss <- liftIO (readIORef dpRef)
+
+  let minus30Days = addMinutes (-30 * 1440) currT
+      dtimes = DT.sumOfDowntimes $ DT.extractRange minus30Days currT $ DT.computeDowntimes currT DT.toDay (DP.dpDisruptions diss)
+
+  liftIO (writeIORef dtRef dtimes)
+  liftIO (waitSeconds 60)
 
 stationFetchingPipe :: Int -> Pipe Facility Station Elescore ()
 stationFetchingPipe delay = do

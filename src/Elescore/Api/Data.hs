@@ -11,9 +11,9 @@ import           Data.IntMap                    (elems)
 import           Servant
 
 import           Elescore.Api.Types
-import           Elescore.Domain                (Station)
 import           Elescore.Domain.Station        (StationRepo, findAll)
 import           Elescore.Projection.Disruption
+import           Elescore.Projection.Downtime   (SumOfDowntimes)
 
 type DataApi =
        "disruptions" :> DisruptionApi
@@ -22,15 +22,18 @@ type DataApi =
 type DisruptionApi =
        "marker" :> Get '[JSON] [DisruptionMarker]
 
-dataServer :: IORef DisruptionProjection -> StationRepo -> Server DataApi
-dataServer dis sr =
-  disruptionMarkerHandler dis sr
-  :<|> listStationsHandler sr
+dataServer :: IORef DisruptionProjection -> IORef SumOfDowntimes -> StationRepo -> Server DataApi
+dataServer dis dt sr =
+  disruptionMarkerHandler dis dt sr
+  :<|> listStationsHandler dt sr
 
-disruptionMarkerHandler :: IORef DisruptionProjection -> StationRepo -> Handler [DisruptionMarker]
-disruptionMarkerHandler dis sr = do
+disruptionMarkerHandler :: IORef DisruptionProjection -> IORef SumOfDowntimes -> StationRepo -> Handler [DisruptionMarker]
+disruptionMarkerHandler dis dt sr = do
+  sodt <- liftIO (readIORef dt)
   diss <- liftIO $ filter (isNothing . dresolvedOn) . elems . dpDisruptions <$> readIORef dis
-  liftIO $ catMaybes <$> mapM (fromDisruption sr) diss
+  liftIO $ catMaybes <$> mapM (fromDisruption sr sodt) diss
 
-listStationsHandler :: StationRepo -> Handler [Station]
-listStationsHandler = findAll
+listStationsHandler :: IORef SumOfDowntimes -> StationRepo -> Handler [Station]
+listStationsHandler dt sr = do
+  sodt <- liftIO (readIORef dt)
+  fmap (fromStation sodt) <$> findAll sr

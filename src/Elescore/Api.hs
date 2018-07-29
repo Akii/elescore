@@ -23,8 +23,9 @@ eleapi = do
   srepo <- stationRepo
   port <- config cfgPort
   diss <- disruptions
+  dt <- downtimes
 
-  liftIO . run port $ serve api (dataServer diss srepo)
+  liftIO . run port $ serve api (dataServer diss dt srepo)
 
   where
     api :: Proxy API

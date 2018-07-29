@@ -6,6 +6,7 @@ module Elescore.Domain.Types where
 
 import           ClassyPrelude                    hiding (fromString,
                                                    getCurrentTime, toLower)
+import           Control.Lens.TH
 import           Data.Aeson.Encoding
 import           Data.Aeson.TH
 import           Data.Aeson.Types                 (FromJSONKey (..),
@@ -201,9 +202,6 @@ instance ToRow Facility where
 
 -- JSON instances
 
-deriveJSON defaultOptions { fieldLabelModifier = (\(x:xs) -> toLower x : xs) . drop 1 } ''Station
-deriveJSON defaultOptions { fieldLabelModifier = (\(x:xs) -> toLower x : xs) . drop 1 } ''Facility
-
 concat <$> mapM
   (deriveJSON defaultOptions {unwrapUnaryRecords = True})
   [''StationId, ''FacilityId, ''DisruptionId, ''FacilityType, ''FacilityState, ''Point]
@@ -225,3 +223,15 @@ instance ToJSONKey FacilityId where
     where
       f (FacilityId i) = tshow i
       g = text . f
+
+makeLensesFor
+  [("sId", "_sId"), ("sName", "_sName"), ("sFacilities", "_sFacilities")]
+  ''Station
+makeLensesFor
+  [ ("fId", "_fId")
+  , ("fStationId", "_fStationId")
+  , ("fType", "_fType")
+  , ("fDescription", "_fDescription")
+  , ("fGeoCoordinates", "_fGeoCoordinates")
+  ]
+  ''Facility

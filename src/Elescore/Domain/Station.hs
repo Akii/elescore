@@ -8,6 +8,7 @@ module Elescore.Domain.Station
   ) where
 
 import           ClassyPrelude
+import           Control.Lens
 import           Data.Map               (elems)
 import           Database.SQLite.Simple hiding (fold)
 
@@ -28,9 +29,8 @@ mkStationRepo conn = StationRepo {..}
       fs <- query_ conn "SELECT * FROM facility"
       return . elems $ foldr insertFacility ss fs
 
-    -- this screams lens
     insertFacility :: Facility -> Map StationId Station -> Map StationId Station
-    insertFacility f = adjustWithKey (\_ s -> s { sFacilities = insertMap (fId f) f (sFacilities s) }) (fStationId f)
+    insertFacility f = at (fStationId f) . _Just . _sFacilities . at (fId f) ?~ f
 
     findById :: MonadIO m => StationId -> m (Maybe Station)
     findById sid = liftIO $ do

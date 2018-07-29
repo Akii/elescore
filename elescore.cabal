@@ -2,10 +2,10 @@
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 6187abf47bb5e937b6a6a211dbe1e6613b7a1cac61a2da40af700c3dfa0aa7a2
+-- hash: 2adb9c7b8f0be6630e0fefe555ebe02afb9e8fdd234d9d2440dc745efc131515
 
 name:           elescore
-version:        2.3.1
+version:        2.4.0
 description:    Please see the README on Github at <https://github.com/akii/elescore#readme>
 homepage:       https://github.com/akii/elescore#readme
 bug-reports:    https://github.com/akii/elescore/issues
@@ -37,11 +37,13 @@ library
       Elescore.Domain.Types
       Elescore.Pipeline
       Elescore.Projection.Disruption
+      Elescore.Projection.Downtime
       Elescore.Remote
       Elescore.Remote.Client
       Elescore.Remote.Mapping
       Elescore.Remote.Types
       Elescore.Types
+      Test
   other-modules:
       Paths_elescore
   hs-source-dirs:
@@ -62,6 +64,7 @@ library
     , http-api-data
     , http-client
     , http-client-tls
+    , lens
     , mtl
     , pipes
     , pipes-concurrency
@@ -72,6 +75,7 @@ library
     , signal
     , sqlite-simple
     , text
+    , time
     , tinylog
     , uuid
     , warp

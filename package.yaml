@@ -1,5 +1,5 @@
 name:                elescore
-version:             2.3.1
+version:             2.4.0
 github:              "akii/elescore"
 license:             BSD3
 author:              "Philipp Maier"
@@ -42,6 +42,7 @@ library:
   - http-api-data
   - http-client
   - http-client-tls
+  - lens
   - mtl
   - pipes
   - pipes-concurrency
@@ -52,6 +53,7 @@ library:
   - signal
   - sqlite-simple
   - text
+  - time
   - tinylog
   - uuid
   - warp
