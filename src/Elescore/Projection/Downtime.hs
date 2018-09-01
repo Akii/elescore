@@ -36,6 +36,7 @@ computeDowntimes currT = foldl' (flip apply) mempty
 
     distributeDuration :: (Ord a, Granularity a) => DateTime -> Integer -> [(PointInTime a, Integer)]
     distributeDuration dt n
+      | n <= 0 = []
       | n <= secondsUntilNextDay = [(toPointInTime dt, n `div` 60)]
       | otherwise = (toPointInTime dt, secondsUntilNextDay `div` 60) : distributeDuration (addSeconds secondsUntilNextDay dt) (n - secondsUntilNextDay)
 
