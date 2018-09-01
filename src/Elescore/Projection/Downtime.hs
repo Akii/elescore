@@ -72,31 +72,31 @@ instance Granularity Month where
 instance Granularity Year where
   toPointInTime = toYear
 
-data PointInTime a = PIT a Text
+newtype PointInTime a = PIT Text
   deriving (Show)
 
 instance Eq a => Eq (PointInTime a) where
-  PIT g1 t1 == PIT g2 t2 = g1 == g2 && t1 == t2
+  PIT a == PIT b = a == b
 
 instance Eq a => Ord (PointInTime a) where
-  PIT _ t1 <= PIT _ t2 = t1 <= t2
+  PIT a <= PIT b = a <= b
 
 toDay :: DateTime -> PointInTime Day
 toDay dt =
   let (year, month, day) = toGregorian (utctDay dt)
       formatted = mconcat [tshow year, "-", prependZero month, "-", prependZero day]
-  in PIT Day formatted
+  in PIT formatted
 
 toMonth :: DateTime -> PointInTime Month
 toMonth dt =
   let (year, month, _) = toGregorian (utctDay dt)
       formatted = mconcat [tshow year, "-", prependZero month]
-  in PIT Month formatted
+  in PIT formatted
 
 toYear :: DateTime -> PointInTime Year
 toYear dt =
   let (year, _, _) = toGregorian (utctDay dt)
-  in PIT Year (tshow year)
+  in PIT (tshow year)
 
 prependZero :: Int -> Text
 prependZero a
