@@ -1,17 +1,14 @@
-{-# LANGUAGE ScopedTypeVariables #-}
-
 module Elescore.Projection.Downtime
   ( Downtime
   , AggregatedDowntime
   , Downtimes
   , SumOfDowntimes
+  , Day
+  , Month
+  , Year
   , computeDowntimes
   , extractRange
   , sumOfDowntimes
-  , toDay
-  , toMonth
-  , toYear
-  , convertPIT
   ) where
 
 import           ClassyPrelude                  hiding (Day)
@@ -28,30 +25,32 @@ type AggregatedDowntime a = Map (PointInTime a) Downtime
 type Downtimes a = Map FacilityId (AggregatedDowntime a)
 type SumOfDowntimes = Map FacilityId Downtime
 
-computeDowntimes :: forall a. Ord a => DateTime -> (DateTime -> PointInTime a) -> IntMap Disruption -> Downtimes a
-computeDowntimes currT f = foldl' (flip apply) mempty
+computeDowntimes :: (Ord a, Granularity a) => DateTime -> IntMap Disruption -> Downtimes a
+computeDowntimes currT = foldl' (flip apply) mempty
   where
-    apply :: Disruption -> Downtimes a -> Downtimes a
+    apply :: (Ord a, Granularity a) => Disruption -> Downtimes a -> Downtimes a
     apply d dt =
       let disDuration = diffSeconds (fromMaybe currT $ dresolvedOn d) (doccurredOn d)
           pits = distributeDuration (doccurredOn d) disDuration
       in foldl' (\b (pit,dur) -> over (at (dfacilityId d) . non mempty) (insertWith (+) pit dur) b) dt pits
 
-    distributeDuration :: DateTime -> Integer -> [(PointInTime a, Integer)]
+    distributeDuration :: (Ord a, Granularity a) => DateTime -> Integer -> [(PointInTime a, Integer)]
     distributeDuration dt n
-      | n <= 0 = []
-      | n <= secondsUntilNextDay = [(f dt, n `div` 60)]
-      | otherwise = (f dt, secondsUntilNextDay `div` 60) : distributeDuration (addSeconds secondsUntilNextDay dt) (n - secondsUntilNextDay)
+      | n <= secondsUntilNextDay = [(toPointInTime dt, n `div` 60)]
+      | otherwise = (toPointInTime dt, secondsUntilNextDay `div` 60) : distributeDuration (addSeconds secondsUntilNextDay dt) (n - secondsUntilNextDay)
 
       where
         secondsUntilNextDay :: Integer
         secondsUntilNextDay = 86400 - floor (fromIntegral (diffTimeToPicoseconds (utctDayTime dt)) * 1e-12 :: Double)
 
-extractRange :: DateTime -> DateTime -> Downtimes a -> Downtimes a
-extractRange start end = fmap (filterWithKey (\k _ -> inRange k))
+extractRange :: (Ord a, Granularity a) => DateTime -> DateTime -> Downtimes a -> Downtimes a
+extractRange start end = fmap (filterWithKey (\k _ -> inRange k pitStart pitEnd))
   where
-    inRange :: PointInTime a -> Bool
-    inRange (PIT _ _ dt) = dt >= start && dt <= end
+    pitStart = toPointInTime start
+    pitEnd = toPointInTime end
+
+    inRange :: Ord a => PointInTime a -> PointInTime a -> PointInTime a -> Bool
+    inRange a s e = a >= s && a <= e
 
 sumOfDowntimes :: Downtimes a -> SumOfDowntimes
 sumOfDowntimes = fmap (sum . elems)
@@ -61,32 +60,45 @@ data Day = Day deriving (Eq, Ord, Show)
 data Month = Month deriving (Eq, Ord, Show)
 data Year = Year deriving (Eq, Ord, Show)
 
--- DateTime in PIT is just kept for converting between granularities
-data PointInTime a = PIT a Text DateTime
+class Granularity a where
+  toPointInTime :: DateTime -> PointInTime a
+
+instance Granularity Day where
+  toPointInTime = toDay
+
+instance Granularity Month where
+  toPointInTime = toMonth
+
+instance Granularity Year where
+  toPointInTime = toYear
+
+data PointInTime a = PIT a Text
   deriving (Show)
 
 instance Eq a => Eq (PointInTime a) where
-  PIT g1 t1 _ == PIT g2 t2 _ = g1 == g2 && t1 == t2
+  PIT g1 t1 == PIT g2 t2 = g1 == g2 && t1 == t2
 
 instance Eq a => Ord (PointInTime a) where
-  PIT _ t1 _ <= PIT _ t2 _ = t1 <= t2
+  PIT _ t1 <= PIT _ t2 = t1 <= t2
 
 toDay :: DateTime -> PointInTime Day
 toDay dt =
   let (year, month, day) = toGregorian (utctDay dt)
-      formatted = mconcat [tshow year, "-", tshow month, "-", tshow day]
-  in PIT Day formatted dt
+      formatted = mconcat [tshow year, "-", prependZero month, "-", prependZero day]
+  in PIT Day formatted
 
 toMonth :: DateTime -> PointInTime Month
 toMonth dt =
   let (year, month, _) = toGregorian (utctDay dt)
-      formatted = mconcat [tshow year, "-", tshow month]
-  in PIT Month formatted dt
+      formatted = mconcat [tshow year, "-", prependZero month]
+  in PIT Month formatted
 
 toYear :: DateTime -> PointInTime Year
 toYear dt =
   let (year, _, _) = toGregorian (utctDay dt)
-  in PIT Year (tshow year) dt
+  in PIT Year (tshow year)
 
-convertPIT :: (DateTime -> PointInTime b) -> PointInTime a -> PointInTime b
-convertPIT f (PIT _ _ dt) = f dt
+prependZero :: Int -> Text
+prependZero a
+  | a < 10 = "0" <> tshow a
+  | otherwise = tshow a

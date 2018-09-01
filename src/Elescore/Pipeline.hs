@@ -1,5 +1,4 @@
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE TemplateHaskell #-}
 
 module Elescore.Pipeline
   ( elepipe
@@ -10,6 +9,7 @@ import           Control.Concurrent             (threadDelay)
 import           Data.DateTime
 import           Data.Monoid                    ((<>))
 import           Pipes
+import qualified Pipes.Prelude as P
 
 import           Elescore.Domain
 import           Elescore.Domain.DisruptionLog  (DisruptionRepo (appendEvent, findAll))
@@ -29,12 +29,13 @@ elepipe = do
   dtRef <- downtimes
   devs <- findAll drepo
 
-  runEffect $ each devs >-> disruptionProjectionPipe dpRef >-> ioRefConsumer dpRef
+  runEffect $ each devs >-> P.filter ((/=) Unknown . devFacilityState) >-> disruptionProjectionPipe dpRef >-> ioRefConsumer dpRef
 
   let disEventP    = disruptedFacilitiesProducer 10
                      >-> disruptionEventPipe (replayEvents devs)
                      >-> eventLogPipe
                      >-> printPipe
+                     >-> P.filter ((/=) Unknown . devFacilityState)
                      >-> disruptionProjectionPipe dpRef
                      >-> ioRefConsumer dpRef
 
@@ -107,11 +108,15 @@ runDowntimeProjection dtRef dpRef = forever $ do
   currT <- liftIO getCurrentTime
   diss <- liftIO (readIORef dpRef)
 
-  let minus30Days = addMinutes (-30 * 1440) currT
-      dtimes = DT.sumOfDowntimes $ DT.extractRange minus30Days currT $ DT.computeDowntimes currT DT.toDay (DP.dpDisruptions diss)
+  let minus1Day = addMinutes (-1440) currT
+      minus30Days = addMinutes (-30 * 1440) currT
+      dtimes = DT.sumOfDowntimes
+        . DT.extractRange minus30Days minus1Day
+        $ (DT.computeDowntimes currT (DP.dpDisruptions diss) :: DT.Downtimes DT.Day)
 
-  liftIO (writeIORef dtRef dtimes)
-  liftIO (waitSeconds 60)
+  liftIO $ do
+    writeIORef dtRef dtimes
+    waitSeconds 60
 
 stationFetchingPipe :: Int -> Pipe Facility Station Elescore ()
 stationFetchingPipe delay = do
