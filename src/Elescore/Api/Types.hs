@@ -35,7 +35,7 @@ data UIFacility = UIFacility
   { uifId             :: SomeFacilityId
   , uifStationId      :: Maybe SomeObjectId
   , uifType           :: FacilityType
-  , uifDescription    :: Text
+  , uifDescription    :: Maybe Text
   , uifGeoCoordinates :: Maybe GeoLocation
   , uifDowntime       :: Integer
   } deriving (Eq, Show)
@@ -72,7 +72,11 @@ fromFacility sodt f =
 
 mapFacility :: Integer -> DT.Facility -> UIFacility
 mapFacility fDowntime =
-  UIFacility <$> fId <*> fObjectId <*> fType <*> fDescription <*> fGeoCoordinates <*> pure fDowntime
+  UIFacility <$> fId <*> fObjectId <*> fType <*> (mapDescription . fDescription) <*> fGeoCoordinates <*> pure fDowntime
+
+mapDescription :: Text -> Maybe Text
+mapDescription "Unknown" = Nothing
+mapDescription a = Just a
 
 deriveJSON defaultOptions { fieldLabelModifier = (\(x:xs) -> toLower x : xs) . drop 3 } ''DisruptionMarker
 deriveJSON defaultOptions { fieldLabelModifier = (\(x:xs) -> toLower x : xs) . drop 3 } ''UIStation
