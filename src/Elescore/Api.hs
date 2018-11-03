@@ -20,12 +20,13 @@ type API = "api" :> DataApi
 
 eleapi :: Elescore ()
 eleapi = do
-  srepo <- stationRepo
   port <- config cfgPort
   diss <- disruptions
   dt <- downtimes
+  objR <- objects
+  fcR <- facilities
 
-  liftIO . run port $ serve api (dataServer diss dt srepo)
+  liftIO . run port $ serve api (dataServer diss dt objR fcR)
 
   where
     api :: Proxy API

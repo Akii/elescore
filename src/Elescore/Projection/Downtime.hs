@@ -17,22 +17,22 @@ import           Data.DateTime                  hiding (toGregorian)
 import           Data.Map                       (filterWithKey, elems)
 import           Data.Time.Clock
 
-import           Elescore.Domain                (FacilityId)
+import           Elescore.IdTypes                (SomeFacilityId)
 import           Elescore.Projection.Disruption
 
 type Downtime = Integer
 type AggregatedDowntime a = Map (PointInTime a) Downtime
-type Downtimes a = Map FacilityId (AggregatedDowntime a)
-type SumOfDowntimes = Map FacilityId Downtime
+type Downtimes a = Map SomeFacilityId (AggregatedDowntime a)
+type SumOfDowntimes = Map SomeFacilityId Downtime
 
 computeDowntimes :: (Ord a, Granularity a) => DateTime -> IntMap Disruption -> Downtimes a
 computeDowntimes currT = foldl' (flip apply) mempty
   where
     apply :: (Ord a, Granularity a) => Disruption -> Downtimes a -> Downtimes a
     apply d dt =
-      let disDuration = diffSeconds (fromMaybe currT $ dresolvedOn d) (doccurredOn d)
-          pits = distributeDuration (doccurredOn d) disDuration
-      in foldl' (\b (pit,dur) -> over (at (dfacilityId d) . non mempty) (insertWith (+) pit dur) b) dt pits
+      let disDuration = diffSeconds (fromMaybe currT $ dResolvedOn d) (dOccurredOn d)
+          pits = distributeDuration (dOccurredOn d) disDuration
+      in foldl' (\b (pit,dur) -> over (at (dFacilityId d) . non mempty) (insertWith (+) pit dur) b) dt pits
 
     distributeDuration :: (Ord a, Granularity a) => DateTime -> Integer -> [(PointInTime a, Integer)]
     distributeDuration dt n

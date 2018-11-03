@@ -1,109 +1,77 @@
-{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE RankNTypes          #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module Elescore.Pipeline
   ( elepipe
   ) where
 
-import           ClassyPrelude                  hiding (getCurrentTime, (<>))
-import           Control.Concurrent             (threadDelay)
+import           ClassyPrelude                hiding (getCurrentTime, try, (<>))
+import           Control.Concurrent           (threadDelay)
+import           Control.Exception            (try)
 import           Data.DateTime
-import           Data.Monoid                    ((<>))
+import           Database.SQLite.Simple
 import           Pipes
-import qualified Pipes.Prelude as P
+import qualified Pipes.Prelude                as P
 
-import           Elescore.Domain
-import           Elescore.Domain.DisruptionLog  (DisruptionRepo (appendEvent, findAll))
-import qualified Elescore.Domain.Station        as S
-import qualified Elescore.Projection.Disruption as DP
-import qualified Elescore.Projection.Downtime   as DT
-import           Elescore.Remote                (fetchDisruptedFacilities,
-                                                 fetchFacilities, fetchStation,
-                                                 mapDisruption, mapFacility,
-                                                 mapStation, runAPI)
+import           Database.SimpleEventStore
+import           Elescore.Integration
+import           Elescore.Projection          (DisruptionProjection (dpDisruptions),
+                                               SumOfDowntimes,
+                                               applyDisruptionEvent,
+                                               applyFacilityEvent,
+                                               applyObjectEvent)
+import qualified Elescore.Projection.Downtime as DT
 import           Elescore.Types
 
 elepipe :: Elescore (Async ())
 elepipe = do
-  drepo <- disruptionRepo
   dpRef <- disruptions
+  facRef <- facilities
+  objRef <- objects
   dtRef <- downtimes
-  devs <- findAll drepo
+  conn <- connection
+  key <- apiKey
+  host <- config cfgHost
+  mgr <- reqManager
 
-  runEffect $ each devs >-> P.filter ((/=) Unknown . devFacilityState) >-> disruptionProjectionPipe dpRef >-> ioRefConsumer dpRef
+  dpEvs <- liftIO (readStream conn)
+  fpEvs <- liftIO (readStream conn)
+  opEvs <- liftIO (readStream conn)
 
-  let disEventP    = disruptedFacilitiesProducer 10
-                     >-> disruptionEventPipe (replayEvents devs)
-                     >-> eventLogPipe
-                     >-> printPipe
-                     >-> P.filter ((/=) Unknown . devFacilityState)
-                     >-> disruptionProjectionPipe dpRef
-                     >-> ioRefConsumer dpRef
+  dbSource <- liftIO $ mkDBSource (fmap evPayload dpEvs) (fmap evPayload fpEvs) (fmap evPayload opEvs) key host mgr
 
-      facilityP    = facilityProducer 3600
-                     >-> stationFetchingPipe 5
-                     >-> stationConsumer
+  let disP = unknownFacilityStatusFilterP >-> projectionP dpRef applyDisruptionEvent
+      facP = P.map evPayload >-> projectionP facRef applyFacilityEvent
+      objP = P.map evPayload >-> projectionP objRef applyObjectEvent
 
-  elepar [runEffect disEventP,
-          runEffect facilityP,
+  waitAsync =<< elepar [ runEffect (each dpEvs >-> disP)
+                       , runEffect (each fpEvs >-> facP)
+                       , runEffect (each opEvs >-> objP)]
+
+  elepar [runEffect (disruptionEvents dbSource >-> eventStoreP conn >-> disP),
+          runEffect (facilityEvents dbSource >-> eventStoreP conn >-> facP),
+          runEffect (objectEvents dbSource >-> eventStoreP conn >-> objP),
           runDowntimeProjection dtRef dpRef]
 
-disruptedFacilitiesProducer :: Int -> Producer Disruptions Elescore ()
-disruptedFacilitiesProducer delay = forever $ do
-  fs <- lift (runAPI fetchDisruptedFacilities)
-  either print (yield . replayDisruptions . fmap mapDisruption) fs
-  waitSeconds delay
+projectionP :: IORef a -> (ev -> a -> a) -> Consumer ev Elescore ()
+projectionP ref f = forever $ await >>= liftIO . modifyIORef' ref . f
 
-facilityProducer :: Int -> Producer Facility Elescore ()
-facilityProducer delay = forever $ do
-  fs <- lift (runAPI $ fetchFacilities Nothing)
-  either print (mapM_ (yield . mapFacility)) fs
-  waitSeconds delay
-
-disruptionEventPipe :: Disruptions -> Pipe Disruptions (Disruption, Change) Elescore ()
-disruptionEventPipe = go
-  where
-    go st = do
-      st' <- await
-      mapM_ yield (calculateChanges st st')
-      go st'
-
-eventLogPipe :: Pipe (Disruption, Change) DisruptionEvent Elescore ()
-eventLogPipe = do
-  drepo <- lift disruptionRepo
-  forever $ do
-    dev <- liftIO . uncurry mkDisruptionEvent =<< await
-    liftIO (appendEvent drepo dev)
-    yield dev
-
-printPipe :: Pipe DisruptionEvent DisruptionEvent Elescore ()
-printPipe = forever $ do
-  dev <- await
-  logDisruptionEvent dev
-  yield dev
+-- | Filters out FaSta API unknown facility states effectively
+unknownFacilityStatusFilterP :: Pipe (PersistedEvent (DisruptionEvent DB)) (PersistedEvent (DisruptionEvent DB)) Elescore ()
+unknownFacilityStatusFilterP = forever $ do
+  ev <- await
+  case evPayload ev of
+    FacilityDisrupted _ r       -> unless (unknownReason r) (yield ev)
+    DisruptionReasonUpdated _ r -> unless (unknownReason r) (yield ev)
+    _                           -> yield ev
 
   where
-    logDisruptionEvent DisruptionEvent {..} =
-      lift . logInfo $ mconcat
-        [ "["
-        , tshow devChange
-        , "] "
-        , tshow (getStationId devStationId)
-        , " | "
-        , tshow (getFacilityId devFacilityId)
-        , " | "
-        , tshow (fromMaybe "" devReason)
-        ]
+    unknownReason :: Reason -> Bool
+    unknownReason MonitoringNotAvailable = True
+    unknownReason MonitoringDisrupted    = True
+    unknownReason _                      = False
 
-disruptionProjectionPipe :: IORef DP.DisruptionProjection -> Pipe DisruptionEvent DP.DisruptionProjection Elescore ()
-disruptionProjectionPipe ref = readIORef ref >>= go
-  where
-    go st = do
-      dev <- await
-      let st' = DP.applyEvent st dev
-      yield st'
-      go st'
-
-runDowntimeProjection :: IORef DT.SumOfDowntimes -> IORef DP.DisruptionProjection -> Elescore ()
+runDowntimeProjection :: IORef SumOfDowntimes -> IORef DisruptionProjection -> Elescore ()
 runDowntimeProjection dtRef dpRef = forever $ do
   currT <- liftIO getCurrentTime
   diss <- liftIO (readIORef dpRef)
@@ -112,36 +80,14 @@ runDowntimeProjection dtRef dpRef = forever $ do
       minus30Days = addMinutes (-30 * 1440) currT
       dtimes = DT.sumOfDowntimes
         . DT.extractRange minus30Days minus1Day
-        $ (DT.computeDowntimes currT (DP.dpDisruptions diss) :: DT.Downtimes DT.Day)
+        $ (DT.computeDowntimes currT (dpDisruptions diss) :: DT.Downtimes DT.Day)
 
   liftIO $ do
     writeIORef dtRef dtimes
-    waitSeconds 60
+    threadDelay (60 * 1000000)
 
-stationFetchingPipe :: Int -> Pipe Facility Station Elescore ()
-stationFetchingPipe delay = do
-  srepo <- lift stationRepo
-  forever $ do
-    f <- await
-    ms <- liftIO (S.findById srepo $ fStationId f)
-    maybe (fetchRemoteStation f) (updateFacility f) ms
-
-  where
-    updateFacility f s = yield (s {sFacilities = insertMap (fId f) f (sFacilities s)})
-    fetchRemoteStation f = do
-      waitSeconds delay
-      let sid = getStationId . fStationId $ f
-      ms <- lift $ runAPI (fetchStation sid)
-      lift . logInfo $ "Fetched remote station " <> tshow sid
-      either print (updateFacility f . mapStation) ms
-
-ioRefConsumer :: IORef a -> Consumer a Elescore ()
-ioRefConsumer ref = forever $ await >>= liftIO . writeIORef ref
-
-stationConsumer :: Consumer Station Elescore ()
-stationConsumer = do
-  srepo <- lift stationRepo
-  forever (await >>= liftIO . S.save srepo)
-
-waitSeconds :: MonadIO m => Int -> m ()
-waitSeconds = liftIO . threadDelay . (* 1000000)
+eventStoreP :: forall a. (HasStream a, PersistableEvent a) => Connection -> Pipe a (PersistedEvent a) Elescore ()
+eventStoreP conn = forever $ do
+  ev <- await
+  pev <- liftIO (try (append conn ev) :: IO (Either SQLError (PersistedEvent a)))
+  either print yield pev

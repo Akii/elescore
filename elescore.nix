@@ -3,11 +3,11 @@
 , http-api-data, http-client, http-client-tls, lens, mtl, pipes
 , pipes-concurrency, raw-strings-qq, servant, servant-client
 , servant-server, signal, sqlite-simple, stdenv, text, time
-, tinylog, uuid, warp
+, tinylog, unordered-containers, uuid, warp
 }:
 mkDerivation {
   pname = "elescore";
-  version = "2.4.0";
+  version = "3.0.0";
   src = ./.;
   isLibrary = true;
   isExecutable = true;
@@ -16,7 +16,7 @@ mkDerivation {
     datetime exceptions free http-api-data http-client http-client-tls
     lens mtl pipes pipes-concurrency raw-strings-qq servant
     servant-client servant-server signal sqlite-simple text time
-    tinylog uuid warp
+    tinylog unordered-containers uuid warp
   ];
   executableHaskellDepends = [ base ];
   homepage = "https://github.com/akii/elescore#readme";

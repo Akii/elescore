@@ -14,7 +14,7 @@ import           Elescore.Types    (mkEnv, runElescore)
 run :: FilePath -> IO ()
 run cfgFile = do
   hSetBuffering stdout LineBuffering
-  putStrLn "Starting Elescore v2"
+  putStrLn "Starting Elescore v3"
 
   cfg <- read . unpack <$> readFileUtf8 cfgFile
   env <- mkEnv cfg
@@ -25,8 +25,8 @@ run cfgFile = do
   installHandler sigINT (const $ shutdown api pipe)
   installHandler sigTERM (const $ shutdown api pipe)
 
-  void (waitCatch api)
   void (waitCatch pipe)
+  void (waitCatch api)
 
   where
     shutdown api pipe = cancel api >> cancel pipe

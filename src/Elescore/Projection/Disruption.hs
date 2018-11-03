@@ -1,78 +1,61 @@
 {-# LANGUAGE RecordWildCards #-}
-
 module Elescore.Projection.Disruption
   ( DisruptionProjection(..)
   , Disruption(..)
-  , Progress(..)
   , emptyDisruptionProjection
-  , applyEvent
+  , applyDisruptionEvent
+  , mkDisruption
   ) where
 
 import           ClassyPrelude
 import           Data.DateTime
+import qualified Data.IntMap as IM
 
-import           Elescore.Domain.Types hiding (Disruption)
+import           Database.SimpleEventStore
+import           Elescore.IdTypes
+import           Elescore.Integration
 
 data DisruptionProjection = DP
-  { dpActiveDisruptions :: Map FacilityId Int
+  { dpActiveDisruptions :: Map SomeFacilityId Int
   , dpDisruptions       :: IntMap Disruption
-  }
+  } deriving (Show)
 
 data Disruption = Disruption
-  { did         :: Int
-  , dstationId  :: StationId
-  , dfacilityId :: FacilityId
-  , doccurredOn :: DateTime
-  , dresolvedOn :: Maybe DateTime
-  , dlog        :: [Progress]
-  }
-
-data Progress = Progress
-  { pfacilityState :: FacilityState
-  , preason        :: Maybe Text
-  , poccurredOn    :: DateTime
-  }
+  { dId         :: Int
+  , dFacilityId :: SomeFacilityId
+  , dOccurredOn :: DateTime
+  , dResolvedOn :: Maybe DateTime
+  , dReason     :: Maybe Reason
+  } deriving (Show)
 
 emptyDisruptionProjection :: DisruptionProjection
 emptyDisruptionProjection = DP mempty mempty
 
-applyEvent :: DisruptionProjection -> DisruptionEvent -> DisruptionProjection
-applyEvent (DP active diss) ev =
-  let existingDis = lookup (devFacilityId ev) active >>= flip lookup diss
-      newDis = mkDisruption (length diss + 1) ev
-      p = mkProgress ev
-      dis = appendProgress p $ fromMaybe newDis existingDis
-      diss' = insertMap (did dis) dis diss
-      active' = housekeepActive dis
-  in DP active' diss'
-  where
-    housekeepActive d =
-      if isJust (dresolvedOn d)
-        then deleteMap (dfacilityId d) active
-        else insertMap (dfacilityId d) (did d) active
+applyDisruptionEvent :: PersistedEvent (DisruptionEvent a) -> DisruptionProjection -> DisruptionProjection
+applyDisruptionEvent PersistedEvent {..} DP {..} =
+  let someFacilityId = toSomeFacilityId (deFacilityId evPayload)
+      disruptionId =
+        fromMaybe
+          (length dpDisruptions + 1)
+          (lookup someFacilityId dpActiveDisruptions)
+      disruption = mkDisruption disruptionId evOccurredOn evPayload
+      activeDisruptions' =
+        if isJust (dResolvedOn disruption)
+          then deleteMap someFacilityId dpActiveDisruptions
+          else insertMap someFacilityId disruptionId dpActiveDisruptions
+      disruptions' = IM.insertWith mergeDisruption disruptionId disruption dpDisruptions
+  in DP activeDisruptions' disruptions'
 
-appendProgress :: Progress -> Disruption -> Disruption
-appendProgress p d =
-  case pfacilityState p of
-    Unknown  -> appendedLog
-    Inactive -> appendedLog
-    Active   -> appendedLog { dresolvedOn = Just (poccurredOn p)}
-  where
-    appendedLog = d { dlog = dlog d ++ [p] }
+mkDisruption :: Int -> DateTime -> DisruptionEvent a -> Disruption
+mkDisruption i dt ev = case ev of
+  FacilityDisrupted fid r       -> Disruption i (toSomeFacilityId fid) dt Nothing (Just r)
+  DisruptionReasonUpdated fid r -> Disruption i (toSomeFacilityId fid) dt Nothing (Just r)
+  FacilityRestored fid          -> Disruption i (toSomeFacilityId fid) dt (Just dt) Nothing
 
-mkDisruption :: Int -> DisruptionEvent -> Disruption
-mkDisruption i ev =
-  Disruption
-    i
-    (devStationId ev)
-    (devFacilityId ev)
-    (devOccurredOn ev)
-    Nothing
-    []
-
-mkProgress :: DisruptionEvent -> Progress
-mkProgress DisruptionEvent {..} =
-  case devChange of
-    New      -> Progress devFacilityState devReason devOccurredOn
-    Updated  -> Progress devFacilityState devReason devOccurredOn
-    Resolved -> Progress Active Nothing devOccurredOn
+mergeDisruption :: Disruption -> Disruption -> Disruption
+mergeDisruption new old = Disruption
+      (dId new)
+      (dFacilityId new)
+      (dOccurredOn old)
+      (dResolvedOn new <|> dResolvedOn old)
+      (dReason new <|> dReason old)

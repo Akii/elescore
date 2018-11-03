@@ -6,34 +6,36 @@ module Elescore.Api.Data
   , dataServer
   ) where
 
-import           ClassyPrelude                  hiding (Handler)
-import           Data.IntMap                    (elems)
+import           ClassyPrelude       hiding (Handler)
+import qualified Data.IntMap         as IM
+import qualified Data.Map            as M
 import           Servant
 
 import           Elescore.Api.Types
-import           Elescore.Domain.Station        (StationRepo, findAll)
-import           Elescore.Projection.Disruption
-import           Elescore.Projection.Downtime   (SumOfDowntimes)
+import           Elescore.Projection
 
 type DataApi =
        "disruptions" :> DisruptionApi
-  :<|> "stations" :> Get '[JSON] [Station]
+  :<|> "stations" :> Get '[JSON] [UIStation]
 
 type DisruptionApi =
        "marker" :> Get '[JSON] [DisruptionMarker]
 
-dataServer :: IORef DisruptionProjection -> IORef SumOfDowntimes -> StationRepo -> Server DataApi
-dataServer dis dt sr =
-  disruptionMarkerHandler dis dt sr
-  :<|> listStationsHandler dt sr
+dataServer :: IORef DisruptionProjection -> IORef SumOfDowntimes -> IORef Objects -> IORef Facilities -> Server DataApi
+dataServer dis dt objs fs =
+  disruptionMarkerHandler dis objs fs
+  :<|> listStationsHandler dt objs fs
 
-disruptionMarkerHandler :: IORef DisruptionProjection -> IORef SumOfDowntimes -> StationRepo -> Handler [DisruptionMarker]
-disruptionMarkerHandler dis dt sr = do
-  sodt <- liftIO (readIORef dt)
-  diss <- liftIO $ filter (isNothing . dresolvedOn) . elems . dpDisruptions <$> readIORef dis
-  liftIO $ catMaybes <$> mapM (fromDisruption sr sodt) diss
+disruptionMarkerHandler :: IORef DisruptionProjection -> IORef Objects -> IORef Facilities -> Handler [DisruptionMarker]
+disruptionMarkerHandler dis objsR fsR = do
+  objs <- liftIO (readIORef objsR)
+  fs <- liftIO (readIORef fsR)
+  diss <- liftIO $ filter (isNothing . dResolvedOn) . IM.elems . dpDisruptions <$> readIORef dis
+  return . catMaybes $ map (fromDisruption objs fs) diss
 
-listStationsHandler :: IORef SumOfDowntimes -> StationRepo -> Handler [Station]
-listStationsHandler dt sr = do
+listStationsHandler :: IORef SumOfDowntimes -> IORef Objects -> IORef Facilities -> Handler [UIStation]
+listStationsHandler dt objsR fsR = do
   sodt <- liftIO (readIORef dt)
-  fmap (fromStation sodt) <$> findAll sr
+  objs <- liftIO (readIORef objsR)
+  fs <- liftIO (readIORef fsR)
+  return $ fmap (fromStation sodt fs) (M.elems objs)

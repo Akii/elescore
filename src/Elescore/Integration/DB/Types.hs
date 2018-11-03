@@ -1,14 +1,52 @@
-{-# LANGUAGE FlexibleContexts  #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE RecordWildCards   #-}
-{-# LANGUAGE TemplateHaskell   #-}
+{-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE FlexibleContexts   #-}
+{-# LANGUAGE FlexibleInstances  #-}
+{-# LANGUAGE RecordWildCards    #-}
+{-# LANGUAGE TemplateHaskell    #-}
 
-module Elescore.Remote.Types where
+module Elescore.Integration.DB.Types where
 
 import           ClassyPrelude
 import           Data.Aeson
 import           Data.Aeson.TH
+import           Data.Data
 import           Servant
+
+import           Database.SimpleEventStore         (HasStream (..))
+import           Elescore.IdTypes
+import           Elescore.Integration.Common.Types (DisruptionEvent,
+                                                    FacilityEvent, FacilityType,
+                                                    GeoLocation, ObjectEvent,
+                                                    Reason)
+
+data DB deriving Data
+
+instance HasStream (DisruptionEvent DB) where
+  getStream = "Disruptions.DB"
+
+instance HasStream (FacilityEvent DB) where
+  getStream = "Facilities.DB"
+
+instance HasStream (ObjectEvent DB) where
+  getStream = "Objects.DB"
+
+data MDisruption = MD
+  { mdId     :: FacilityId DB
+  , mdReason :: Reason
+  } deriving (Eq)
+
+data MFacility = MF
+  { mfId          :: FacilityId DB
+  , mfObjectId    :: Maybe (ObjectId DB)
+  , mfGeoLocation :: Maybe GeoLocation
+  , mfType        :: FacilityType
+  , mfDescription :: Text
+  } deriving (Eq)
+
+data MObject = MO
+  { moId          :: ObjectId DB
+  , moDescription :: Text
+  } deriving (Eq, Ord)
 
 data Station = Station
   { sstationnumber :: Integer
@@ -62,4 +100,3 @@ instance IsString ApiKey where
 instance ToHttpApiData ApiKey where
   toHeader (ApiKey key) = encodeUtf8 ("Bearer " <> key)
   toQueryParam (ApiKey key) = key
-

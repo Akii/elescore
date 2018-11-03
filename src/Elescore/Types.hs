@@ -2,20 +2,17 @@
 
 module Elescore.Types where
 
-import           ClassyPrelude                  hiding (log)
+import           ClassyPrelude                 hiding (log)
 import           Control.Monad.Catch
-import           Network.HTTP.Client            (Manager, newManager)
-import           Network.HTTP.Client.TLS        (tlsManagerSettings)
-import qualified System.Logger                  as Logger
-import           System.Logger.Class            hiding (info)
+import           Network.HTTP.Client           (Manager, newManager)
+import           Network.HTTP.Client.TLS       (tlsManagerSettings)
 
-
-import           Elescore.Database
-import           Elescore.Domain
-import           Elescore.Projection.Disruption (DisruptionProjection,
-                                                 emptyDisruptionProjection)
-import           Elescore.Projection.Downtime   (SumOfDowntimes)
-import           Elescore.Remote.Types          (ApiKey (..))
+import           Database.SimpleEventStore     (Connection, mkConnection)
+import           Elescore.Integration.DB.Types (ApiKey (..))
+import           Elescore.Projection           (DisruptionProjection,
+                                                Facilities, Objects,
+                                                SumOfDowntimes,
+                                                emptyDisruptionProjection)
 
 data Config = Config
     { cfgHost     :: String
@@ -26,12 +23,12 @@ data Config = Config
 
 data Env = Env
   { envConfig         :: Config
-  , envLogger         :: Logger
   , envRequestManager :: Manager
-  , envStationRepo    :: StationRepo
-  , envDisruptionRepo :: DisruptionRepo
+  , envConnection     :: Connection
   , envDisruptions    :: IORef DisruptionProjection
   , envDowntimes      :: IORef SumOfDowntimes
+  , envObjects        :: IORef Objects
+  , envFacilities     :: IORef Facilities
   }
 
 newtype Elescore a = Elescore
@@ -46,20 +43,15 @@ newtype Elescore a = Elescore
              , MonadMask
              )
 
-instance MonadLogger Elescore where
-  log l m = Elescore $ do
-    lg <- asks envLogger
-    liftIO $ Logger.log lg l m
-
 mkEnv :: Config -> IO Env
 mkEnv c = do
   mgr <- newManager tlsManagerSettings
   conn <- mkConnection (cfgDatabase c)
   diss <- newIORef emptyDisruptionProjection
   dtimes <- newIORef mempty
-  lg <- new (setOutput StdOut defSettings)
-  srepo <- mkCachedStationRepo conn
-  return $ Env c lg mgr srepo (mkDisruptionRepo conn) diss dtimes
+  objs <- newIORef mempty
+  fs <- newIORef mempty
+  return $ Env c mgr conn diss dtimes objs fs
 
 runElescore :: Env -> Elescore a -> IO a
 runElescore env e = runReaderT (elescore e) env
@@ -75,8 +67,8 @@ apiKey = Elescore $ asks (fromString . cfgApiKey . envConfig)
 reqManager :: Elescore Manager
 reqManager = Elescore $ asks envRequestManager
 
-disruptionRepo :: Elescore DisruptionRepo
-disruptionRepo = Elescore $ asks envDisruptionRepo
+connection :: Elescore Connection
+connection = Elescore $ asks envConnection
 
 disruptions :: Elescore (IORef DisruptionProjection)
 disruptions = Elescore $ asks envDisruptions
@@ -84,11 +76,11 @@ disruptions = Elescore $ asks envDisruptions
 downtimes :: Elescore (IORef SumOfDowntimes)
 downtimes = Elescore $ asks envDowntimes
 
-stationRepo :: Elescore StationRepo
-stationRepo = Elescore $ asks envStationRepo
+objects :: Elescore (IORef Objects)
+objects = Elescore $ asks envObjects
+
+facilities :: Elescore (IORef Facilities)
+facilities = Elescore $ asks envFacilities
 
 config :: (Config -> a) -> Elescore a
 config f = Elescore $ asks (f . envConfig)
-
-logInfo :: MonadLogger m => Text -> m ()
-logInfo = log Logger.Info . Logger.msg

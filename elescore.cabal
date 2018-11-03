@@ -1,21 +1,22 @@
--- This file has been generated from package.yaml by hpack version 0.28.2.
+cabal-version: 2.2
+
+-- This file has been generated from package.yaml by hpack version 0.31.0.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: ebe86fba885dd74fe3707bb5eee671340ef8e147e406825c1e857b5b543c3673
+-- hash: 322e1ce88a0c8fcdc8f0ab18a32bc20ac15b999bb5962265630806aff3a33de2
 
 name:           elescore
-version:        2.4.0
+version:        3.0.0
 description:    Please see the README on Github at <https://github.com/akii/elescore#readme>
 homepage:       https://github.com/akii/elescore#readme
 bug-reports:    https://github.com/akii/elescore/issues
 author:         Philipp Maier
 maintainer:     zedd@akii.de
 copyright:      2017 Philipp Maier
-license:        BSD3
+license:        BSD-3-Clause
 license-file:   LICENSE
 build-type:     Simple
-cabal-version:  >= 1.10
 extra-source-files:
     README.md
 
@@ -25,24 +26,27 @@ source-repository head
 
 library
   exposed-modules:
+      Database.SimpleEventStore
       Elescore
       Elescore.Api
       Elescore.Api.Data
       Elescore.Api.Types
-      Elescore.Database
-      Elescore.Domain
-      Elescore.Domain.DisruptionLog
-      Elescore.Domain.Monitoring
-      Elescore.Domain.Station
-      Elescore.Domain.Types
+      Elescore.IdTypes
+      Elescore.Integration
+      Elescore.Integration.Common.Monitoring
+      Elescore.Integration.Common.Types
+      Elescore.Integration.DB
+      Elescore.Integration.DB.Client
+      Elescore.Integration.DB.Mapping
+      Elescore.Integration.DB.Monitoring
+      Elescore.Integration.DB.Types
       Elescore.Pipeline
+      Elescore.Projection
       Elescore.Projection.Disruption
       Elescore.Projection.Downtime
-      Elescore.Remote
-      Elescore.Remote.Client
-      Elescore.Remote.Mapping
-      Elescore.Remote.Types
+      Elescore.Projection.Objects
       Elescore.Types
+      Migration.V2ToV3
   other-modules:
       Paths_elescore
   hs-source-dirs:
@@ -75,7 +79,7 @@ library
     , sqlite-simple
     , text
     , time
-    , tinylog
+    , unordered-containers
     , uuid
     , warp
   default-language: Haskell2010
