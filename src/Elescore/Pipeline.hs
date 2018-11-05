@@ -58,8 +58,8 @@ elepipe = do
           runEffect (objectEvents bogSource >-> eventStoreP conn >-> objP),
           runDowntimeProjection dtRef dpRef]
 
-projectionP :: IORef a -> (ev -> a -> a) -> Consumer ev Elescore ()
-projectionP ref f = for cat $ liftIO . modifyIORef' ref . f
+projectionP :: TVar a -> (ev -> a -> a) -> Consumer ev Elescore ()
+projectionP ref f = for cat $ liftIO . atomically . modifyTVar' ref . f
 
 -- | Filters out FaSta API unknown facility states effectively
 filterUnknownP :: Pipe (PersistedEvent (DisruptionEvent a)) (PersistedEvent (DisruptionEvent a)) Elescore ()
@@ -75,10 +75,10 @@ filterUnknownP = for cat $ \ev ->
     unknownReason MonitoringDisrupted    = True
     unknownReason _                      = False
 
-runDowntimeProjection :: IORef SumOfDowntimes -> IORef DisruptionProjection -> Elescore ()
+runDowntimeProjection :: IORef SumOfDowntimes -> TVar DisruptionProjection -> Elescore ()
 runDowntimeProjection dtRef dpRef = forever $ do
   currT <- liftIO getCurrentTime
-  diss <- liftIO (readIORef dpRef)
+  diss <- liftIO (readTVarIO dpRef)
 
   let minus1Day = addMinutes (-1440) currT
       minus30Days = addMinutes (-30 * 1440) currT

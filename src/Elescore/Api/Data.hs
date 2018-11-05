@@ -21,21 +21,21 @@ type DataApi =
 type DisruptionApi =
        "marker" :> Get '[JSON] [DisruptionMarker]
 
-dataServer :: IORef DisruptionProjection -> IORef SumOfDowntimes -> IORef Objects -> IORef Facilities -> Server DataApi
+dataServer :: TVar DisruptionProjection -> IORef SumOfDowntimes -> TVar Objects -> TVar Facilities -> Server DataApi
 dataServer dis dt objs fs =
   disruptionMarkerHandler dis objs fs
   :<|> listStationsHandler dt objs fs
 
-disruptionMarkerHandler :: IORef DisruptionProjection -> IORef Objects -> IORef Facilities -> Handler [DisruptionMarker]
+disruptionMarkerHandler :: TVar DisruptionProjection -> TVar Objects -> TVar Facilities -> Handler [DisruptionMarker]
 disruptionMarkerHandler dis objsR fsR = do
-  objs <- liftIO (readIORef objsR)
-  fs <- liftIO (readIORef fsR)
-  diss <- liftIO $ filter (isNothing . dResolvedOn) . IM.elems . dpDisruptions <$> readIORef dis
+  objs <- liftIO (readTVarIO objsR)
+  fs <- liftIO (readTVarIO fsR)
+  diss <- liftIO $ filter (isNothing . dResolvedOn) . IM.elems . dpDisruptions <$> readTVarIO dis
   return . catMaybes $ map (fromDisruption objs fs) diss
 
-listStationsHandler :: IORef SumOfDowntimes -> IORef Objects -> IORef Facilities -> Handler [UIStation]
+listStationsHandler :: IORef SumOfDowntimes -> TVar Objects -> TVar Facilities -> Handler [UIStation]
 listStationsHandler dt objsR fsR = do
   sodt <- liftIO (readIORef dt)
-  objs <- liftIO (readIORef objsR)
-  fs <- liftIO (readIORef fsR)
+  objs <- liftIO (readTVarIO objsR)
+  fs <- liftIO (readTVarIO fsR)
   return $ fmap (fromStation sodt fs) (M.elems objs)
