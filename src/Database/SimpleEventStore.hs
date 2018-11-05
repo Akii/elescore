@@ -7,7 +7,7 @@
 {-# LANGUAGE TypeApplications    #-}
 
 module Database.SimpleEventStore
-  ( Connection
+  ( Store
   , PersistedEvent(..)
   , EventId(..)
   , EventType(..)
@@ -15,7 +15,9 @@ module Database.SimpleEventStore
   , HasStream(..)
   , HasNamespace(..)
   , PersistableEvent(..)
-  , mkConnection
+  , SQLError
+  , mkStore
+  , mkStoreAsOf
   , append
   , appendMany
   , readStream
@@ -34,6 +36,8 @@ import           Database.SQLite.Simple
 import           Database.SQLite.Simple.FromField
 import           Database.SQLite.Simple.ToField
 import           Text.RawString.QQ
+
+data Store = Store Connection (Maybe DateTime)
 
 data PersistedEvent a = PersistedEvent
   { evId         :: EventId
@@ -103,11 +107,16 @@ deleteEventTypeTag :: Value -> Value
 deleteEventTypeTag (Object o) = Object (HM.delete "tag" o)
 deleteEventTypeTag a          = a
 
-mkConnection :: FilePath -> IO Connection
-mkConnection dbFile = do
+mkStore :: FilePath -> IO Store
+mkStore dbFile = do
   conn <- open dbFile
   createEventStore conn
-  return conn
+  return (Store conn Nothing)
+
+mkStoreAsOf :: FilePath -> DateTime -> IO Store
+mkStoreAsOf dbFile asOf = do
+  Store conn _ <- mkStore dbFile
+  return (Store conn (Just asOf))
 
 createEventStore :: MonadIO m => Connection -> m ()
 createEventStore conn = liftIO $ execute_ conn [r|
@@ -121,13 +130,13 @@ createEventStore conn = liftIO $ execute_ conn [r|
     );
   |]
 
-append :: (HasStream a, PersistableEvent a) => Connection -> a -> IO (PersistedEvent a)
+append :: (HasStream a, PersistableEvent a) => Store -> a -> IO (PersistedEvent a)
 append conn a = do
   persistedEvent <- mkPersistedEvent a
   writeStream conn persistedEvent
   return persistedEvent
 
-appendMany :: (HasStream a, PersistableEvent a) => Connection -> [a] -> IO [PersistedEvent a]
+appendMany :: (HasStream a, PersistableEvent a) => Store -> [a] -> IO [PersistedEvent a]
 appendMany conn as = do
   evs <- mapM mkPersistedEvent as
   writeStreamM conn evs
@@ -135,8 +144,9 @@ appendMany conn as = do
 
 -- todo: use fold for streaming results
 -- todo: if sequence needed use (.:)
-readStream :: forall a. (HasStream a, PersistableEvent a) => Connection -> IO [PersistedEvent a]
-readStream conn =
+-- todo: respect asOf date
+readStream :: forall a. (HasStream a, PersistableEvent a) => Store -> IO [PersistedEvent a]
+readStream (Store conn _) =
   let types = eventTypes @a
       stream = getStream @a
       params = (":stream" := (stream <> "%")) : zipWith (\i t -> (":" <> tshow i) := t) [0 .. length types] types
@@ -145,11 +155,11 @@ readStream conn =
 
   in queryNamed conn q params
 
-writeStream :: PersistableEvent a => Connection -> PersistedEvent a -> IO ()
-writeStream conn = execute conn "INSERT INTO event_store (id, type, stream, occurred_on, payload) VALUES (?,?,?,?,?)"
+writeStream :: PersistableEvent a => Store -> PersistedEvent a -> IO ()
+writeStream (Store conn _) = execute conn "INSERT INTO event_store (id, type, stream, occurred_on, payload) VALUES (?,?,?,?,?)"
 
-writeStreamM :: PersistableEvent a => Connection -> [PersistedEvent a] -> IO ()
-writeStreamM conn = executeMany conn "INSERT INTO event_store (id, type, stream, occurred_on, payload) VALUES (?,?,?,?,?)"
+writeStreamM :: PersistableEvent a => Store -> [PersistedEvent a] -> IO ()
+writeStreamM (Store conn _) = executeMany conn "INSERT INTO event_store (id, type, stream, occurred_on, payload) VALUES (?,?,?,?,?)"
 
 mkPersistedEvent :: forall a. (HasStream a, PersistableEvent a) => a -> IO (PersistedEvent a)
 mkPersistedEvent a = do

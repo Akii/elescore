@@ -5,7 +5,7 @@ module Elescore.Integration
   , Bogestra
   , mkBogSource
 
-  , All
+  , All(..)
   , DisruptionEvent(..)
   , ObjectEvent(..)
   , FacilityEvent(..)

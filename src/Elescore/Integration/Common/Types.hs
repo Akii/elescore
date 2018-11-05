@@ -14,12 +14,14 @@ import           Data.Aeson.TH
 import           Data.Char                 (toLower)
 import           Data.Data
 import           Pipes
+import qualified Pipes.Prelude             as P
 
 import           Database.SimpleEventStore (HasNamespace (..), HasStream (..),
-                                            PersistableEvent (..))
+                                            PersistableEvent (..),
+                                            PersistedEvent)
 import           Elescore.IdTypes
 
-data All deriving Data
+data All = All deriving Data
 
 instance HasStream (DisruptionEvent All) where
   getStream = "Disruptions"
@@ -31,10 +33,18 @@ instance HasStream (ObjectEvent All) where
   getStream = "Objects"
 
 data Source m a = Source
-  { disruptionEvents :: Producer (DisruptionEvent a) m ()
-  , facilityEvents   :: Producer (FacilityEvent a) m ()
-  , objectEvents     :: Producer (ObjectEvent a) m ()
+  { disruptionEvents :: Producer (PersistedEvent (DisruptionEvent a)) m ()
+  , facilityEvents   :: Producer (PersistedEvent (FacilityEvent a)) m ()
+  , objectEvents     :: Producer (PersistedEvent (ObjectEvent a)) m ()
   }
+
+instance Monad m => Functor (Source m) where
+  fmap f Source {..} =
+    Source
+    { disruptionEvents = disruptionEvents >-> P.map (fmap (fmap f))
+    , facilityEvents = facilityEvents >-> P.map (fmap (fmap f))
+    , objectEvents = objectEvents >-> P.map (fmap (fmap f))
+    }
 
 data DisruptionEvent a
   = FacilityDisrupted { deFacilityId :: FacilityId a, deReason :: Reason }

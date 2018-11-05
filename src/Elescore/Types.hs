@@ -7,7 +7,7 @@ import           Control.Monad.Catch
 import           Network.HTTP.Client           (Manager, newManager)
 import           Network.HTTP.Client.TLS       (tlsManagerSettings)
 
-import           Database.SimpleEventStore     (Connection, mkConnection)
+import           Database.SimpleEventStore     (Store, mkStore)
 import           Elescore.Integration.DB.Types (ApiKey (..))
 import           Elescore.Projection           (DisruptionProjection,
                                                 Facilities, Objects,
@@ -24,7 +24,7 @@ data Config = Config
 data Env = Env
   { envConfig         :: Config
   , envRequestManager :: Manager
-  , envConnection     :: Connection
+  , envStore          :: Store
   , envDisruptions    :: TVar DisruptionProjection
   , envDowntimes      :: IORef SumOfDowntimes
   , envObjects        :: TVar Objects
@@ -46,7 +46,7 @@ newtype Elescore a = Elescore
 mkEnv :: Config -> IO Env
 mkEnv c = do
   mgr <- newManager tlsManagerSettings
-  conn <- mkConnection (cfgDatabase c)
+  conn <- mkStore (cfgDatabase c)
   diss <- newTVarIO emptyDisruptionProjection
   dtimes <- newIORef mempty
   objs <- newTVarIO mempty
@@ -67,8 +67,8 @@ apiKey = Elescore $ asks (fromString . cfgApiKey . envConfig)
 reqManager :: Elescore Manager
 reqManager = Elescore $ asks envRequestManager
 
-connection :: Elescore Connection
-connection = Elescore $ asks envConnection
+store :: Elescore Store
+store = Elescore $ asks envStore
 
 disruptions :: Elescore (TVar DisruptionProjection)
 disruptions = Elescore $ asks envDisruptions

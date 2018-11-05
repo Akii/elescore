@@ -4,10 +4,10 @@ cabal-version: 2.2
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 8b5c3d115668e0757971cfab59de82355c05927f85a5f6f15abd56defc191c45
+-- hash: 501912beafd546b4409b06045293ee245e8de2b746e9c2968b5681a6cc376e75
 
 name:           elescore
-version:        3.1.0
+version:        3.1.2
 description:    Please see the README on Github at <https://github.com/akii/elescore#readme>
 homepage:       https://github.com/akii/elescore#readme
 bug-reports:    https://github.com/akii/elescore/issues
@@ -40,6 +40,7 @@ library
       Elescore.Integration.Bogestra.Types
       Elescore.Integration.Common.Monitoring
       Elescore.Integration.Common.Types
+      Elescore.Integration.Common.Utils
       Elescore.Integration.DB
       Elescore.Integration.DB.Client
       Elescore.Integration.DB.Mapping
@@ -52,8 +53,7 @@ library
       Elescore.Projection.Objects
       Elescore.Types
   other-modules:
-      Migration.V2ToV3
-      Migration.V31
+      Paths_elescore
   hs-source-dirs:
       src
   default-extensions: NoImplicitPrelude OverloadedStrings

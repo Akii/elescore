@@ -1,4 +1,3 @@
-{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE RankNTypes          #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
@@ -6,12 +5,11 @@ module Elescore.Pipeline
   ( elepipe
   ) where
 
-import           ClassyPrelude                hiding (getCurrentTime, try, (<>), for)
+import           ClassyPrelude                hiding (for, getCurrentTime, try)
 import           Control.Concurrent           (threadDelay)
-import           Control.Exception            (try)
 import           Data.DateTime
-import           Database.SQLite.Simple
 import           Pipes
+import           Pipes.Concurrent hiding (atomically)
 import qualified Pipes.Prelude                as P
 
 import           Database.SimpleEventStore
@@ -30,50 +28,48 @@ elepipe = do
   facRef <- facilities
   objRef <- objects
   dtRef <- downtimes
-  conn <- connection
+  s <- store
   key <- apiKey
   host <- config cfgHost
   mgr <- reqManager
 
-  dpEvs <- liftIO (readStream conn) :: Elescore [PersistedEvent (DisruptionEvent All)]
-  fpEvs <- liftIO (readStream conn) :: Elescore [PersistedEvent (FacilityEvent All)]
-  opEvs <- liftIO (readStream conn) :: Elescore [PersistedEvent (ObjectEvent All)]
+  dbSource <- mkDBSource s key host mgr
+  bogSource <- mkBogSource s
+  allSource <- combineSource dbSource bogSource
 
-  dbSource <- liftIO $ mkDBSource conn key host mgr
-  bogSource <- liftIO $ mkBogSource conn
-
-  let disP = P.seq >-> filterUnknownP >-> projectionP dpRef applyDisruptionEvent
-      facP = P.seq >-> P.map evPayload >-> projectionP facRef applyFacilityEvent
-      objP = P.seq >-> P.map evPayload >-> projectionP objRef applyObjectEvent
-
-  waitAsync =<< elepar [ runEffect (each dpEvs >-> disP)
-                       , runEffect (each fpEvs >-> facP)
-                       , runEffect (each opEvs >-> objP)]
-
-  elepar [runEffect (disruptionEvents dbSource >-> eventStoreP conn >-> disP),
-          runEffect (facilityEvents dbSource >-> eventStoreP conn >-> facP),
-          runEffect (objectEvents dbSource >-> eventStoreP conn >-> objP),
-          runEffect (disruptionEvents bogSource >-> eventStoreP conn >-> disP),
-          runEffect (facilityEvents bogSource >-> eventStoreP conn >-> facP),
-          runEffect (objectEvents bogSource >-> eventStoreP conn >-> objP),
+  elepar [runEffect (disruptionEvents allSource >-> projectionP dpRef applyDisruptionEvent),
+          runEffect (facilityEvents allSource >-> P.map evPayload >-> projectionP facRef applyFacilityEvent),
+          runEffect (objectEvents allSource >-> P.map evPayload >-> projectionP objRef applyObjectEvent),
           runDowntimeProjection dtRef dpRef]
+
+combineSource :: Source Elescore a -> Source Elescore b -> Elescore (Source Elescore All)
+combineSource s1 s2 = do
+  env <- ask
+
+  (out1, in1) <- liftIO (spawn unbounded)
+  (out2, in2) <- liftIO (spawn unbounded)
+  (out3, in3) <- liftIO (spawn unbounded)
+  (out4, in4) <- liftIO (spawn unbounded)
+  (out5, in5) <- liftIO (spawn unbounded)
+  (out6, in6) <- liftIO (spawn unbounded)
+
+  let s1All = fmap (const All) s1
+      s2All = fmap (const All) s2
+
+  liftIO $ do
+    void . forkIO . runElescore env . runEffect $ disruptionEvents s1All >-> toOutput out1
+    void . forkIO . runElescore env . runEffect $ disruptionEvents s2All >-> toOutput out2
+    void . forkIO . runElescore env . runEffect $ facilityEvents s1All >-> toOutput out3
+    void . forkIO . runElescore env . runEffect $ facilityEvents s2All >-> toOutput out4
+    void . forkIO . runElescore env . runEffect $ objectEvents s1All >-> toOutput out5
+    void . forkIO . runElescore env . runEffect $ objectEvents s2All >-> toOutput out6
+
+  return Source { disruptionEvents = fromInput (in1 <> in2)
+                , facilityEvents = fromInput (in3 <> in4)
+                , objectEvents = fromInput (in5 <> in6)}
 
 projectionP :: TVar a -> (ev -> a -> a) -> Consumer ev Elescore ()
 projectionP ref f = for cat $ liftIO . atomically . modifyTVar' ref . f
-
--- | Filters out FaSta API unknown facility states effectively
-filterUnknownP :: Pipe (PersistedEvent (DisruptionEvent a)) (PersistedEvent (DisruptionEvent a)) Elescore ()
-filterUnknownP = for cat $ \ev ->
-  case evPayload ev of
-    FacilityDisrupted _ r       -> unless (unknownReason r) (yield ev)
-    DisruptionReasonUpdated _ r -> unless (unknownReason r) (yield ev)
-    _                           -> yield ev
-
-  where
-    unknownReason :: Reason -> Bool
-    unknownReason MonitoringNotAvailable = True
-    unknownReason MonitoringDisrupted    = True
-    unknownReason _                      = False
 
 runDowntimeProjection :: IORef SumOfDowntimes -> TVar DisruptionProjection -> Elescore ()
 runDowntimeProjection dtRef dpRef = forever $ do
@@ -89,8 +85,3 @@ runDowntimeProjection dtRef dpRef = forever $ do
   liftIO $ do
     writeIORef dtRef dtimes
     threadDelay (60 * 1000000)
-
-eventStoreP :: forall a. (HasStream a, PersistableEvent a) => Connection -> Pipe a (PersistedEvent a) Elescore ()
-eventStoreP conn = for cat $ \ev -> do
-  pev <- liftIO (try (append conn ev) :: IO (Either SQLError (PersistedEvent a)))
-  either print yield pev
