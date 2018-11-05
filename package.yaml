@@ -1,5 +1,5 @@
 name:                elescore
-version:             3.0.1
+version:             3.1.0
 github:              "akii/elescore"
 license:             BSD-3-Clause
 author:              "Philipp Maier"
@@ -29,7 +29,8 @@ library:
   - NoImplicitPrelude
   - OverloadedStrings
   other-modules:
-    - Migration.V2ToV3
+  - Migration.V2ToV3
+  - Migration.V31
   dependencies:
   - base >= 4.7 && < 5
   - aeson

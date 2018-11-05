@@ -4,10 +4,10 @@ cabal-version: 2.2
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 43cf6023491d3a68c75a2d9cc098c3ccdb79dea161d84e07e5755838ddb75196
+-- hash: 8b5c3d115668e0757971cfab59de82355c05927f85a5f6f15abd56defc191c45
 
 name:           elescore
-version:        3.0.1
+version:        3.1.0
 description:    Please see the README on Github at <https://github.com/akii/elescore#readme>
 homepage:       https://github.com/akii/elescore#readme
 bug-reports:    https://github.com/akii/elescore/issues
@@ -53,6 +53,7 @@ library
       Elescore.Types
   other-modules:
       Migration.V2ToV3
+      Migration.V31
   hs-source-dirs:
       src
   default-extensions: NoImplicitPrelude OverloadedStrings
