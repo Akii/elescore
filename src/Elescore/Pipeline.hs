@@ -1,3 +1,4 @@
+{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE RankNTypes          #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
@@ -5,7 +6,7 @@ module Elescore.Pipeline
   ( elepipe
   ) where
 
-import           ClassyPrelude                hiding (getCurrentTime, try, (<>))
+import           ClassyPrelude                hiding (getCurrentTime, try, (<>), for)
 import           Control.Concurrent           (threadDelay)
 import           Control.Exception            (try)
 import           Data.DateTime
@@ -34,15 +35,16 @@ elepipe = do
   host <- config cfgHost
   mgr <- reqManager
 
-  dpEvs <- liftIO (readStream conn)
-  fpEvs <- liftIO (readStream conn)
-  opEvs <- liftIO (readStream conn)
+  dpEvs <- liftIO (readStream conn) :: Elescore [PersistedEvent (DisruptionEvent All)]
+  fpEvs <- liftIO (readStream conn) :: Elescore [PersistedEvent (FacilityEvent All)]
+  opEvs <- liftIO (readStream conn) :: Elescore [PersistedEvent (ObjectEvent All)]
 
-  dbSource <- liftIO $ mkDBSource (fmap evPayload dpEvs) (fmap evPayload fpEvs) (fmap evPayload opEvs) key host mgr
+  dbSource <- liftIO $ mkDBSource conn key host mgr
+  bogSource <- liftIO $ mkBogSource conn
 
-  let disP = unknownFacilityStatusFilterP >-> projectionP dpRef applyDisruptionEvent
-      facP = P.map evPayload >-> projectionP facRef applyFacilityEvent
-      objP = P.map evPayload >-> projectionP objRef applyObjectEvent
+  let disP = P.seq >-> filterUnknownP >-> projectionP dpRef applyDisruptionEvent
+      facP = P.seq >-> P.map evPayload >-> projectionP facRef applyFacilityEvent
+      objP = P.seq >-> P.map evPayload >-> projectionP objRef applyObjectEvent
 
   waitAsync =<< elepar [ runEffect (each dpEvs >-> disP)
                        , runEffect (each fpEvs >-> facP)
@@ -51,15 +53,17 @@ elepipe = do
   elepar [runEffect (disruptionEvents dbSource >-> eventStoreP conn >-> disP),
           runEffect (facilityEvents dbSource >-> eventStoreP conn >-> facP),
           runEffect (objectEvents dbSource >-> eventStoreP conn >-> objP),
+          runEffect (disruptionEvents bogSource >-> eventStoreP conn >-> disP),
+          runEffect (facilityEvents bogSource >-> eventStoreP conn >-> facP),
+          runEffect (objectEvents bogSource >-> eventStoreP conn >-> objP),
           runDowntimeProjection dtRef dpRef]
 
 projectionP :: IORef a -> (ev -> a -> a) -> Consumer ev Elescore ()
-projectionP ref f = forever $ await >>= liftIO . modifyIORef' ref . f
+projectionP ref f = for cat $ liftIO . modifyIORef' ref . f
 
 -- | Filters out FaSta API unknown facility states effectively
-unknownFacilityStatusFilterP :: Pipe (PersistedEvent (DisruptionEvent DB)) (PersistedEvent (DisruptionEvent DB)) Elescore ()
-unknownFacilityStatusFilterP = forever $ do
-  ev <- await
+filterUnknownP :: Pipe (PersistedEvent (DisruptionEvent a)) (PersistedEvent (DisruptionEvent a)) Elescore ()
+filterUnknownP = for cat $ \ev ->
   case evPayload ev of
     FacilityDisrupted _ r       -> unless (unknownReason r) (yield ev)
     DisruptionReasonUpdated _ r -> unless (unknownReason r) (yield ev)
@@ -87,7 +91,6 @@ runDowntimeProjection dtRef dpRef = forever $ do
     threadDelay (60 * 1000000)
 
 eventStoreP :: forall a. (HasStream a, PersistableEvent a) => Connection -> Pipe a (PersistedEvent a) Elescore ()
-eventStoreP conn = forever $ do
-  ev <- await
+eventStoreP conn = for cat $ \ev -> do
   pev <- liftIO (try (append conn ev) :: IO (Either SQLError (PersistedEvent a)))
   either print yield pev

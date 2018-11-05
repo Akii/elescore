@@ -1,6 +1,11 @@
 module Elescore.Integration
   ( DB
   , mkDBSource
+
+  , Bogestra
+  , mkBogSource
+
+  , All
   , DisruptionEvent(..)
   , ObjectEvent(..)
   , FacilityEvent(..)
@@ -12,4 +17,5 @@ module Elescore.Integration
   ) where
 
 import Elescore.Integration.DB
+import Elescore.Integration.Bogestra
 import Elescore.Integration.Common.Types

@@ -22,7 +22,7 @@ data DisruptionMarker = DisruptionMarker
   , disFacilityDescription :: Text
   , disReason              :: Maybe Text
   , disSince               :: DateTime
-  , disGeoCoordinates      :: GeoLocation
+  , disGeoCoordinates      :: Maybe GeoLocation
   } deriving (Eq, Show)
 
 data UIStation = UIStation
@@ -45,7 +45,6 @@ fromDisruption objs fs Disruption {..} = do
   facility <- lookup dFacilityId fs
   objectId <- fObjectId facility
   object <- lookup objectId objs
-  geoCoord <- fGeoCoordinates facility
   return
     (DisruptionMarker
        dId
@@ -56,7 +55,7 @@ fromDisruption objs fs Disruption {..} = do
        (fDescription facility)
        (fmap tshow dReason)
        dOccurredOn
-       geoCoord)
+       (fGeoCoordinates facility))
 
 fromStation :: SumOfDowntimes -> Facilities -> DT.Object -> UIStation
 fromStation sodt fs o =

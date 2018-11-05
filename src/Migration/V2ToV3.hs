@@ -1,15 +1,15 @@
-{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE RecordWildCards  #-}
 {-# LANGUAGE TypeApplications #-}
 
 module Migration.V2ToV3 where
 
-import ClassyPrelude
-import Database.SQLite.Simple
-import Data.DateTime
+import           ClassyPrelude             hiding (log)
+import           Data.DateTime
+import           Database.SQLite.Simple
 
-import Database.SimpleEventStore
-import Elescore.Integration
-import Elescore.IdTypes
+import           Database.SimpleEventStore
+import           Elescore.IdTypes
+import           Elescore.Integration
 
 {-
 
@@ -58,10 +58,10 @@ mapDisruptionToEvent :: DisruptionLog -> PersistedEvent (DisruptionEvent DB)
 mapDisruptionToEvent (evId, fId, rOld, evOccurredOn, c) =
   let reason = maybe (error "no reason") translateReason rOld
       evPayload = case c of
-        "New" -> FacilityDisrupted (mkFacilityId fId) reason
-        "Updated" -> DisruptionReasonUpdated (mkFacilityId fId) reason
+        "New"      -> FacilityDisrupted (mkFacilityId fId) reason
+        "Updated"  -> DisruptionReasonUpdated (mkFacilityId fId) reason
         "Resolved" -> FacilityRestored (mkFacilityId fId)
-        _ -> error "whoops"
+        _          -> error "whoops"
       evType = eventType evPayload
       evStream = getStream @(DisruptionEvent DB)
   in PersistedEvent {..}

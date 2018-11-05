@@ -10,9 +10,11 @@ module Elescore.Integration.Common.Monitoring
   , monitorP
   , calculateChange
   , calculateChanges
+  , waitSeconds
   ) where
 
 import           ClassyPrelude
+import           Control.Concurrent  (threadDelay)
 import           Control.Monad.State
 import           Data.Map            (elems, filterWithKey)
 import           Pipes
@@ -81,3 +83,6 @@ calculateChanges monitor s1 bs =
       if a1 /= a2
       then Just (Updated a1 a2)
       else Nothing
+
+waitSeconds :: MonadIO m => Int -> m ()
+waitSeconds = liftIO . threadDelay . (* 1000000)

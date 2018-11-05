@@ -28,6 +28,8 @@ library:
   default-extensions:
   - NoImplicitPrelude
   - OverloadedStrings
+  other-modules:
+    - Migration.V2ToV3
   dependencies:
   - base >= 4.7 && < 5
   - aeson
@@ -47,16 +49,20 @@ library:
   - pipes
   - pipes-concurrency
   - raw-strings-qq
+  - scalpel-core
   - servant
   - servant-client
   - servant-server
   - signal
   - sqlite-simple
+  - tagsoup
   - text
   - time
   - unordered-containers
   - uuid
+  - uri-bytestring
   - warp
+  - wreq
 
 executables:
   elescore-exe:

@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE FlexibleInstances  #-}
 {-# LANGUAGE TemplateHaskell    #-}
@@ -23,11 +24,11 @@ newtype SomeObjectId = SomeObjectId
 
 newtype ObjectId a = ObjectId
   { getObjectId :: Text
-  } deriving (Eq, Ord, Data, Show)
+  } deriving (Eq, Ord, Data, Show, Functor)
 
 newtype FacilityId a = FacilityId
   { getFacilityId :: Text
-  } deriving (Eq, Ord, Data, Show)
+  } deriving (Eq, Ord, Data, Show, Functor)
 
 toSomeFacilityId :: FacilityId a -> SomeFacilityId
 toSomeFacilityId = SomeFacilityId . getFacilityId

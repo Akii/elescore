@@ -4,12 +4,12 @@ module Elescore.Integration.DB
   ) where
 
 import           ClassyPrelude                          hiding (forM)
-import           Control.Concurrent                     (threadDelay)
 import           Network.HTTP.Client                    (Manager)
 import           Pipes
 import           Pipes.Concurrent
 import qualified Pipes.Prelude                          as P
 
+import Database.SimpleEventStore
 import           Elescore.IdTypes
 import           Elescore.Integration.Common.Monitoring
 import           Elescore.Integration.Common.Types
@@ -18,12 +18,14 @@ import           Elescore.Integration.DB.Mapping
 import           Elescore.Integration.DB.Monitoring
 import           Elescore.Integration.DB.Types
 
-mkDBSource :: MonadIO m => [DisruptionEvent DB] -> [FacilityEvent DB] -> [ObjectEvent DB] -> ApiKey -> Host -> Manager -> IO (Source m DB)
-mkDBSource dev fev oev key host mgr = do
-  let dState = replayMkSeed dbDisruptionMonitor dev
+mkDBSource :: MonadIO m => Connection -> ApiKey -> Host -> Manager -> IO (Source m DB)
+mkDBSource conn key host mgr = do
+  fev <-  fmap evPayload <$> readStream conn
+  dState <- replayMkSeed dbDisruptionMonitor . fmap evPayload <$> readStream conn
+  oState <- replayMkSeed dbObjectMonitor . fmap evPayload <$> readStream conn
+
+  let oIds = keys oState
       fState = replayMkSeed dbFacilityMonitor fev
-      oState = replayMkSeed dbObjectMonitor oev
-      oIds = keys oState
 
   (out1, in1) <- spawn unbounded
 
@@ -60,6 +62,3 @@ mkDBSource dev fev oev key host mgr = do
       a <- liftIO $ runReaderT (fetchStation oid) (key, mgr, host)
       either print yield a
       waitSeconds delay
-
-waitSeconds :: MonadIO m => Int -> m ()
-waitSeconds = liftIO . threadDelay . (* 1000000)

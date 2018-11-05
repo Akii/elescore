@@ -1,7 +1,9 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE DeriveDataTypeable  #-}
+{-# LANGUAGE DeriveFunctor       #-}
 {-# LANGUAGE DeriveGeneric       #-}
 {-# LANGUAGE FlexibleInstances   #-}
+{-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE TemplateHaskell     #-}
 
 module Elescore.Integration.Common.Types where
@@ -13,9 +15,20 @@ import           Data.Char                 (toLower)
 import           Data.Data
 import           Pipes
 
-import           Database.SimpleEventStore (HasNamespace (..),
+import           Database.SimpleEventStore (HasNamespace (..), HasStream (..),
                                             PersistableEvent (..))
 import           Elescore.IdTypes
+
+data All deriving Data
+
+instance HasStream (DisruptionEvent All) where
+  getStream = "Disruptions"
+
+instance HasStream (FacilityEvent All) where
+  getStream = "Facilities"
+
+instance HasStream (ObjectEvent All) where
+  getStream = "Objects"
 
 data Source m a = Source
   { disruptionEvents :: Producer (DisruptionEvent a) m ()
@@ -27,7 +40,7 @@ data DisruptionEvent a
   = FacilityDisrupted { deFacilityId :: FacilityId a, deReason :: Reason }
   | DisruptionReasonUpdated { deFacilityId :: FacilityId a, deReason :: Reason }
   | FacilityRestored { deFacilityId :: FacilityId a }
-  deriving (Show, Generic, Data)
+  deriving (Show, Generic, Data, Functor)
 
 data FacilityEvent a
   = FacilityIdentified { feFacilityId :: FacilityId a, feFacilityType :: FacilityType, feDescription :: Text }
@@ -37,7 +50,7 @@ data FacilityEvent a
   | FacilityLocated { feFacilityId :: FacilityId a, feGeoLocation :: GeoLocation }
   | FacilityAddressUpdated { feFacilityId :: FacilityId a, feAddress :: Address }
   | FacilityDeleted { feFacilityId :: FacilityId a }
-  deriving (Show, Generic, Data)
+  deriving (Show, Generic, Data, Functor)
 
 data ObjectEvent a
   = ObjectIdentified { oeObjectId :: ObjectId a, oeDescription :: Text }
@@ -45,7 +58,7 @@ data ObjectEvent a
   | ObjectLocated { oeObjectId :: ObjectId a, oeGeoLocation :: GeoLocation }
   | ObjectAddressUpdated { oeObjectId :: ObjectId a, oeAddress :: Address }
   | ObjectDeleted { oeObjectId :: ObjectId a }
-  deriving (Show, Generic, Data)
+  deriving (Show, Generic, Data, Functor)
 
 data Reason
   = UnderConstruction

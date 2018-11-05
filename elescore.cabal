@@ -4,7 +4,7 @@ cabal-version: 2.2
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 46623b668f88bc34cb7f5e9bd0bd4001de1aede12b755794f8201489c2c34bfa
+-- hash: 43cf6023491d3a68c75a2d9cc098c3ccdb79dea161d84e07e5755838ddb75196
 
 name:           elescore
 version:        3.0.1
@@ -33,6 +33,11 @@ library
       Elescore.Api.Types
       Elescore.IdTypes
       Elescore.Integration
+      Elescore.Integration.Bogestra
+      Elescore.Integration.Bogestra.Client
+      Elescore.Integration.Bogestra.Monitor
+      Elescore.Integration.Bogestra.Scraper
+      Elescore.Integration.Bogestra.Types
       Elescore.Integration.Common.Monitoring
       Elescore.Integration.Common.Types
       Elescore.Integration.DB
@@ -46,9 +51,8 @@ library
       Elescore.Projection.Downtime
       Elescore.Projection.Objects
       Elescore.Types
-      Migration.V2ToV3
   other-modules:
-      Paths_elescore
+      Migration.V2ToV3
   hs-source-dirs:
       src
   default-extensions: NoImplicitPrelude OverloadedStrings
@@ -72,16 +76,20 @@ library
     , pipes
     , pipes-concurrency
     , raw-strings-qq
+    , scalpel-core
     , servant
     , servant-client
     , servant-server
     , signal
     , sqlite-simple
+    , tagsoup
     , text
     , time
     , unordered-containers
+    , uri-bytestring
     , uuid
     , warp
+    , wreq
   default-language: Haskell2010
 
 executable elescore-exe
