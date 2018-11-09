@@ -1,8 +1,10 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE DataKinds           #-}
 {-# LANGUAGE DeriveDataTypeable  #-}
 {-# LANGUAGE DeriveFunctor       #-}
 {-# LANGUAGE DeriveGeneric       #-}
 {-# LANGUAGE FlexibleInstances   #-}
+{-# LANGUAGE KindSignatures      #-}
 {-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE TemplateHaskell     #-}
 
@@ -13,62 +15,85 @@ import           Data.Aeson
 import           Data.Aeson.TH
 import           Data.Char                 (toLower)
 import           Data.Data
-import           Pipes
-import qualified Pipes.Prelude             as P
+import           Pipes.Concurrent          (Input)
 
 import           Database.SimpleEventStore (HasNamespace (..), HasStream (..),
                                             PersistableEvent (..),
                                             PersistedEvent)
 import           Elescore.IdTypes
 
-data All = All deriving Data
+data Integration
+  = DB
+  | Bogestra
+  | All
 
-instance HasStream (DisruptionEvent All) where
+instance HasStream (DisruptionEvent 'All) where
   getStream = "Disruptions"
 
-instance HasStream (FacilityEvent All) where
+instance HasStream (FacilityEvent 'All) where
   getStream = "Facilities"
 
-instance HasStream (ObjectEvent All) where
+instance HasStream (ObjectEvent 'All) where
   getStream = "Objects"
 
-data Source m a = Source
-  { disruptionEvents :: Producer (PersistedEvent (DisruptionEvent a)) m ()
-  , facilityEvents   :: Producer (PersistedEvent (FacilityEvent a)) m ()
-  , objectEvents     :: Producer (PersistedEvent (ObjectEvent a)) m ()
+instance HasStream (DisruptionEvent 'DB) where
+  getStream = "Disruptions.DB"
+
+instance HasStream (FacilityEvent 'DB) where
+  getStream = "Facilities.DB"
+
+instance HasStream (ObjectEvent 'DB) where
+  getStream = "Objects.DB"
+
+instance HasStream (DisruptionEvent 'Bogestra) where
+  getStream = "Disruptions.Bogestra"
+
+instance HasStream (FacilityEvent 'Bogestra) where
+  getStream = "Facilities.Bogestra"
+
+instance HasStream (ObjectEvent 'Bogestra) where
+  getStream = "Objects.Bogestra"
+
+data Source (a :: Integration) = Source
+  { disruptionEvents :: Input (PersistedEvent (DisruptionEvent a))
+  , facilityEvents   :: Input (PersistedEvent (FacilityEvent a))
+  , objectEvents     :: Input (PersistedEvent (ObjectEvent a))
   }
 
-instance Monad m => Functor (Source m) where
-  fmap f Source {..} =
+instance Semigroup (Source a) where
+  s1 <> s2 =
     Source
-    { disruptionEvents = disruptionEvents >-> P.map (fmap (fmap f))
-    , facilityEvents = facilityEvents >-> P.map (fmap (fmap f))
-    , objectEvents = objectEvents >-> P.map (fmap (fmap f))
+    { disruptionEvents = disruptionEvents s1 <> disruptionEvents s2
+    , facilityEvents = facilityEvents s1 <> facilityEvents s2
+    , objectEvents = objectEvents s1 <> objectEvents s2
     }
 
-data DisruptionEvent a
-  = FacilityDisrupted { deFacilityId :: FacilityId a, deReason :: Reason }
-  | DisruptionReasonUpdated { deFacilityId :: FacilityId a, deReason :: Reason }
-  | FacilityRestored { deFacilityId :: FacilityId a }
-  deriving (Show, Generic, Data, Functor)
+instance Monoid (Source a) where
+  mempty = Source mempty mempty mempty
 
-data FacilityEvent a
-  = FacilityIdentified { feFacilityId :: FacilityId a, feFacilityType :: FacilityType, feDescription :: Text }
-  | FacilityTypeChanged { feFacilityId :: FacilityId a, feFacilityType :: FacilityType }
-  | FacilityAssignedToObject { feFacilityId :: FacilityId a, feObjectId :: ObjectId a }
-  | FacilityDescriptionUpdated { feFacilityId :: FacilityId a, feDescription :: Text }
-  | FacilityLocated { feFacilityId :: FacilityId a, feGeoLocation :: GeoLocation }
-  | FacilityAddressUpdated { feFacilityId :: FacilityId a, feAddress :: Address }
-  | FacilityDeleted { feFacilityId :: FacilityId a }
-  deriving (Show, Generic, Data, Functor)
+data DisruptionEvent (a :: Integration)
+  = FacilityDisrupted { deFacilityId :: FacilityId, deReason :: Reason }
+  | DisruptionReasonUpdated { deFacilityId :: FacilityId, deReason :: Reason }
+  | FacilityRestored { deFacilityId :: FacilityId }
+  deriving (Show, Generic, Data)
 
-data ObjectEvent a
-  = ObjectIdentified { oeObjectId :: ObjectId a, oeDescription :: Text }
-  | ObjectDescriptionUpdated { oeObjectId :: ObjectId a, oeDescription :: Text }
-  | ObjectLocated { oeObjectId :: ObjectId a, oeGeoLocation :: GeoLocation }
-  | ObjectAddressUpdated { oeObjectId :: ObjectId a, oeAddress :: Address }
-  | ObjectDeleted { oeObjectId :: ObjectId a }
-  deriving (Show, Generic, Data, Functor)
+data FacilityEvent (a :: Integration)
+  = FacilityIdentified { feFacilityId :: FacilityId, feFacilityType :: FacilityType, feDescription :: Text }
+  | FacilityTypeChanged { feFacilityId :: FacilityId, feFacilityType :: FacilityType }
+  | FacilityAssignedToObject { feFacilityId :: FacilityId, feObjectId :: ObjectId }
+  | FacilityDescriptionUpdated { feFacilityId :: FacilityId, feDescription :: Text }
+  | FacilityLocated { feFacilityId :: FacilityId, feGeoLocation :: GeoLocation }
+  | FacilityAddressUpdated { feFacilityId :: FacilityId, feAddress :: Address }
+  | FacilityDeleted { feFacilityId :: FacilityId }
+  deriving (Show, Generic, Data)
+
+data ObjectEvent (a :: Integration)
+  = ObjectIdentified { oeObjectId :: ObjectId, oeDescription :: Text }
+  | ObjectDescriptionUpdated { oeObjectId :: ObjectId, oeDescription :: Text }
+  | ObjectLocated { oeObjectId :: ObjectId, oeGeoLocation :: GeoLocation }
+  | ObjectAddressUpdated { oeObjectId :: ObjectId, oeAddress :: Address }
+  | ObjectDeleted { oeObjectId :: ObjectId }
+  deriving (Show, Generic, Data)
 
 data Reason
   = UnderConstruction
@@ -110,9 +135,9 @@ instance HasNamespace (FacilityEvent a) where
 instance HasNamespace (ObjectEvent a) where
   getNamespace = "de.elescore.integration.v1"
 
-instance Data a => PersistableEvent (DisruptionEvent a)
-instance Data a => PersistableEvent (FacilityEvent a)
-instance Data a => PersistableEvent (ObjectEvent a)
+instance Typeable a => PersistableEvent (DisruptionEvent a)
+instance Typeable a => PersistableEvent (FacilityEvent a)
+instance Typeable a => PersistableEvent (ObjectEvent a)
 
 instance ToJSON (DisruptionEvent a) where
   toJSON = genericToJSON options

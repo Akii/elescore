@@ -1,3 +1,4 @@
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE RecordWildCards #-}
 
 module Elescore.Integration.Bogestra.Monitor
@@ -14,22 +15,22 @@ import qualified Elescore.Integration.Common.Types as T
 import           Elescore.Integration.Common.Types      hiding
                                                          (FacilityType (..))
 
-type DisruptionMonitor = Monitor (FacilityId Bogestra) (FacilityId Bogestra, Bool) (DisruptionEvent Bogestra)
-type DisruptionState = MonitorState (FacilityId Bogestra) (FacilityId Bogestra, Bool)
+type DisruptionMonitor = Monitor FacilityId (FacilityId, Bool) (DisruptionEvent 'Bogestra)
+type DisruptionState = MonitorState FacilityId (FacilityId, Bool)
 
-type FacilityMonitor = Monitor (FacilityId Bogestra) Elevator (FacilityEvent Bogestra)
-type FacilityState = MonitorState (FacilityId Bogestra) Elevator
+type FacilityMonitor = Monitor FacilityId Elevator (FacilityEvent 'Bogestra)
+type FacilityState = MonitorState FacilityId Elevator
 
 bogDisruptionMonitor :: DisruptionMonitor
 bogDisruptionMonitor = Monitor fst applyEvent toDisruptionEvent
   where
-    applyEvent :: DisruptionEvent Bogestra -> DisruptionState -> DisruptionState
+    applyEvent :: DisruptionEvent 'Bogestra -> DisruptionState -> DisruptionState
     applyEvent ev = case ev of
       FacilityDisrupted fid _    -> insertMap fid (fid, True)
       DisruptionReasonUpdated {} -> id
       FacilityRestored fid       -> insertMap fid (fid, False)
 
-    toDisruptionEvent :: Change (FacilityId Bogestra, Bool) -> EmitsEvents (DisruptionEvent Bogestra)
+    toDisruptionEvent :: Change (FacilityId, Bool) -> EmitsEvents (DisruptionEvent 'Bogestra)
     toDisruptionEvent c =
       case c of
         New (eid, disr) ->
@@ -43,7 +44,7 @@ bogDisruptionMonitor = Monitor fst applyEvent toDisruptionEvent
 bogFacilityMonitor :: FacilityMonitor
 bogFacilityMonitor = Monitor eId applyEvent toFacilityEvent
   where
-    applyEvent :: FacilityEvent Bogestra -> FacilityState -> FacilityState
+    applyEvent :: FacilityEvent 'Bogestra -> FacilityState -> FacilityState
     applyEvent ev = case ev of
       FacilityIdentified fid _ desc       -> insertMap fid (Elevator fid Nothing desc False)
       FacilityTypeChanged {}              -> id
@@ -53,7 +54,7 @@ bogFacilityMonitor = Monitor eId applyEvent toFacilityEvent
       FacilityAddressUpdated {}           -> id
       FacilityDeleted fid                 -> deleteMap fid
 
-    toFacilityEvent :: Change Elevator -> EmitsEvents (FacilityEvent Bogestra)
+    toFacilityEvent :: Change Elevator -> EmitsEvents (FacilityEvent 'Bogestra)
     toFacilityEvent c = case c of
         New Elevator {..} -> do
           emitEvent (FacilityIdentified eId T.Elevator eDescription)

@@ -1,26 +1,9 @@
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE DeriveDataTypeable #-}
-
 module Elescore.Integration.Bogestra.Types where
 
 import           ClassyPrelude
-import           Data.Data
 import           URI.ByteString
 
-import           Database.SimpleEventStore hiding (Object)
 import           Elescore.IdTypes
-import           Elescore.Integration.Common.Types
-
-data Bogestra deriving Data
-
-instance HasStream (DisruptionEvent Bogestra) where
-  getStream = "Disruptions.Bogestra"
-
-instance HasStream (FacilityEvent Bogestra) where
-  getStream = "Facilities.Bogestra"
-
-instance HasStream (ObjectEvent Bogestra) where
-  getStream = "Objects.Bogestra"
 
 data Object
   = Bochum
@@ -28,8 +11,8 @@ data Object
   | Herne
 
 data Elevator = Elevator
-  { eId          :: FacilityId Bogestra
-  , eObjectId    :: Maybe (ObjectId Bogestra)
+  { eId          :: FacilityId
+  , eObjectId    :: Maybe ObjectId
   , eDescription :: Text
   , eIsDisrupted :: Bool
   } deriving (Eq, Show)
@@ -37,14 +20,14 @@ data Elevator = Elevator
 type Table = [TableRow]
 data TableRow = TR
   { trStation         :: Text
-  , trFacilityId      :: FacilityId Bogestra
+  , trFacilityId      :: FacilityId
   , trTravelDirection :: Maybe Text
   , trPlatform        :: Text
   , trDetailsLink     :: URI
   , trDisruptionLink  :: Maybe URI
   }
 
-getObjectId :: Object -> ObjectId Bogestra
+getObjectId :: Object -> ObjectId
 getObjectId Bochum        = ObjectId "BOG-Bochum"
 getObjectId Gelsenkirchen = ObjectId "BOG-Gelsenkirchen"
 getObjectId Herne         = ObjectId "BOG-Herne"

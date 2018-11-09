@@ -1,6 +1,9 @@
+{-# LANGUAGE DataKinds           #-}
+{-# LANGUAGE ExplicitForAll      #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+
 module Elescore.Integration.DB
-  ( DB
-  , mkDBSource
+  ( runDBSource
   ) where
 
 import           ClassyPrelude                          hiding (for, forM)
@@ -19,8 +22,8 @@ import           Elescore.Integration.DB.Mapping
 import           Elescore.Integration.DB.Monitoring
 import           Elescore.Integration.DB.Types
 
-mkDBSource :: MonadIO m => Store -> ApiKey -> Host -> Manager -> m (Source m DB)
-mkDBSource store key host mgr = do
+runDBSource :: MonadIO m => Store -> ApiKey -> Host -> Manager -> m (Source 'DB)
+runDBSource store key host mgr = do
   disP <- disruptions store
   fP <- facilities store
   oEvs <- liftIO (readStream store)
@@ -31,13 +34,23 @@ mkDBSource store key host mgr = do
 
   (output, input) <- liftIO (spawn unbounded)
 
+  (out1, in1) <- liftIO (spawn unbounded)
+  (out2, in2) <- liftIO (spawn unbounded)
+  (out3, in3) <- liftIO (spawn unbounded)
+
+  liftIO $ do
+    void . forkIO . runEffect $ apiP 10 fetchDisruptedFacilities >-> disP >-> toOutput out1
+    void . forkIO . runEffect $ apiP 3600 (fetchFacilities Nothing) >-> fP >-> toOutput (output <> out2)
+    void . forkIO . runEffect $ fromInput input >-> P.map evPayload >-> stationFilterP oIds >-> fetchStationP 5 >-> oP >-> toOutput out3
+
   return Source
-     { disruptionEvents = apiP 10 fetchDisruptedFacilities >-> disP
-     , facilityEvents = apiP 3600 (fetchFacilities Nothing) >-> fP >-> P.tee (toOutput output)
-     , objectEvents = fromInput input >-> P.map evPayload >-> stationFilterP oIds >-> fetchStationP 5 >-> oP}
+     { disruptionEvents = in1
+     , facilityEvents = in2
+     , objectEvents = in3
+     }
 
   where
-    stationFilterP :: MonadIO m => [ObjectId DB] -> Pipe (FacilityEvent DB) (ObjectId DB) m ()
+    stationFilterP :: MonadIO m => [ObjectId] -> Pipe (FacilityEvent 'DB) ObjectId m ()
     stationFilterP = go
       where
         go s = do
@@ -47,20 +60,20 @@ mkDBSource store key host mgr = do
             _                              -> return ()
           go s
 
-    fetchStationP :: MonadIO m => Int -> Pipe (ObjectId DB) Station m ()
+    fetchStationP :: Int -> Pipe ObjectId Station IO ()
     fetchStationP delay = forever $ do
       oid <- fromObjectId <$> await
       a <- liftIO $ runReaderT (fetchStation oid) (key, mgr, host)
       either print yield a
       waitSeconds delay
 
-    apiP :: MonadIO m => Int -> API a -> Producer a m ()
+    apiP :: Int -> API a -> Producer a IO ()
     apiP delay action = forever $ do
       a <- liftIO $ runReaderT action (key, mgr, host)
       either print yield a
       waitSeconds delay
 
-disruptions :: MonadIO m => Store -> m (Pipe [Facility] (PersistedEvent (DisruptionEvent DB)) m ())
+disruptions :: MonadIO m => Store -> m (Pipe [Facility] (PersistedEvent (DisruptionEvent 'DB)) IO ())
 disruptions store = do
   disEvs <- liftIO (readStream store)
 
@@ -71,7 +84,7 @@ disruptions store = do
     >-> eachBefore disEvs
     >-> filterUnknownP
 
-facilities :: MonadIO m => Store -> m (Pipe [Facility] (PersistedEvent (FacilityEvent DB)) m ())
+facilities :: MonadIO m => Store -> m (Pipe [Facility] (PersistedEvent (FacilityEvent 'DB)) IO ())
 facilities store = do
   fEvs <- liftIO (readStream store)
 
@@ -81,7 +94,7 @@ facilities store = do
     >-> P.concat
     >-> eachBefore fEvs
 
-objects :: MonadIO m => Store -> [PersistedEvent (ObjectEvent DB)] -> Pipe Station (PersistedEvent (ObjectEvent DB)) m ()
+objects :: Store -> [PersistedEvent (ObjectEvent 'DB)] -> Pipe Station (PersistedEvent (ObjectEvent 'DB)) IO ()
 objects store oEvs =
   P.map mkMObject
     >-> monitorSP dbObjectMonitor (replayMkSeed dbObjectMonitor . fmap evPayload $ oEvs)
@@ -90,7 +103,7 @@ objects store oEvs =
     >-> eachBefore oEvs
 
 -- | Filters out FaSta API unknown facility states effectively
-filterUnknownP :: Monad m => Pipe (PersistedEvent (DisruptionEvent a)) (PersistedEvent (DisruptionEvent a)) m ()
+filterUnknownP :: Pipe (PersistedEvent (DisruptionEvent a)) (PersistedEvent (DisruptionEvent a)) IO ()
 filterUnknownP = for cat $ \ev ->
   case evPayload ev of
     FacilityDisrupted _ r       -> unless (unknownReason r) (yield ev)

@@ -17,13 +17,13 @@ import           Data.DateTime                  hiding (toGregorian)
 import           Data.Map                       (filterWithKey, elems)
 import           Data.Time.Clock
 
-import           Elescore.IdTypes                (SomeFacilityId)
+import           Elescore.IdTypes                (FacilityId)
 import           Elescore.Projection.Disruption
 
 type Downtime = Integer
 type AggregatedDowntime a = Map (PointInTime a) Downtime
-type Downtimes a = Map SomeFacilityId (AggregatedDowntime a)
-type SumOfDowntimes = Map SomeFacilityId Downtime
+type Downtimes a = Map FacilityId (AggregatedDowntime a)
+type SumOfDowntimes = Map FacilityId Downtime
 
 computeDowntimes :: (Ord a, Granularity a) => DateTime -> IntMap Disruption -> Downtimes a
 computeDowntimes currT = foldl' (flip apply) mempty

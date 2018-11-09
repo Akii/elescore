@@ -15,9 +15,9 @@ import qualified Elescore.Projection  as DT
 
 data DisruptionMarker = DisruptionMarker
   { disId                  :: Int
-  , disStationId           :: SomeObjectId
+  , disStationId           :: ObjectId
   , disStationName         :: Text
-  , disFacilityId          :: SomeFacilityId
+  , disFacilityId          :: FacilityId
   , disFacilityType        :: FacilityType
   , disFacilityDescription :: Text
   , disReason              :: Maybe Text
@@ -26,14 +26,14 @@ data DisruptionMarker = DisruptionMarker
   } deriving (Eq, Show)
 
 data UIStation = UIStation
-  { uisId         :: SomeObjectId
+  { uisId         :: ObjectId
   , uisName       :: Text
-  , uisFacilities :: Map SomeFacilityId UIFacility
+  , uisFacilities :: Map FacilityId UIFacility
   } deriving (Eq, Show)
 
 data UIFacility = UIFacility
-  { uifId             :: SomeFacilityId
-  , uifStationId      :: Maybe SomeObjectId
+  { uifId             :: FacilityId
+  , uifStationId      :: Maybe ObjectId
   , uifType           :: FacilityType
   , uifDescription    :: Maybe Text
   , uifGeoCoordinates :: Maybe GeoLocation

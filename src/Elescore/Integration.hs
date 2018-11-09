@@ -1,11 +1,8 @@
 module Elescore.Integration
-  ( DB
-  , mkDBSource
+  ( Integration(..)
+  , runDBSource
+  , runBogSource
 
-  , Bogestra
-  , mkBogSource
-
-  , All(..)
   , DisruptionEvent(..)
   , ObjectEvent(..)
   , FacilityEvent(..)

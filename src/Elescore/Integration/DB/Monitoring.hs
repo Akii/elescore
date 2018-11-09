@@ -1,3 +1,4 @@
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE RecordWildCards #-}
 
 module Elescore.Integration.DB.Monitoring
@@ -13,19 +14,19 @@ import           Elescore.Integration.Common.Monitoring
 import           Elescore.Integration.Common.Types
 import           Elescore.Integration.DB.Types
 
-type DisruptionMonitor = Monitor (FacilityId DB) MDisruption (DisruptionEvent DB)
-type Disruptions = MonitorState (FacilityId DB) MDisruption
+type DisruptionMonitor = Monitor FacilityId MDisruption (DisruptionEvent 'DB)
+type Disruptions = MonitorState FacilityId MDisruption
 
-type FacilityMonitor = Monitor (FacilityId DB) MFacility (FacilityEvent DB)
-type Facilities = MonitorState (FacilityId DB) MFacility
+type FacilityMonitor = Monitor FacilityId MFacility (FacilityEvent 'DB)
+type Facilities = MonitorState FacilityId MFacility
 
-type ObjectMonitor = Monitor (ObjectId DB) MObject (ObjectEvent DB)
-type Objects = MonitorState (ObjectId DB) MObject
+type ObjectMonitor = Monitor ObjectId MObject (ObjectEvent 'DB)
+type Objects = MonitorState ObjectId MObject
 
 dbDisruptionMonitor :: DisruptionMonitor
 dbDisruptionMonitor = Monitor {identify = mdId, apply = applyEvent, toEvent = mkDisruptionEvent}
   where
-    mkDisruptionEvent :: Change MDisruption -> EmitsEvents (DisruptionEvent DB)
+    mkDisruptionEvent :: Change MDisruption -> EmitsEvents (DisruptionEvent 'DB)
     mkDisruptionEvent c = case c of
         New MD {..} ->
           emitEvent (FacilityDisrupted mdId mdReason)
@@ -34,7 +35,7 @@ dbDisruptionMonitor = Monitor {identify = mdId, apply = applyEvent, toEvent = mk
         Deleted d ->
           emitEvent $ FacilityRestored (mdId d)
 
-    applyEvent :: DisruptionEvent DB -> Disruptions -> Disruptions
+    applyEvent :: DisruptionEvent 'DB -> Disruptions -> Disruptions
     applyEvent ev = case ev of
         FacilityDisrupted fid r       -> insertMap fid (MD fid r)
         DisruptionReasonUpdated fid r -> insertMap fid (MD fid r)
@@ -43,7 +44,7 @@ dbDisruptionMonitor = Monitor {identify = mdId, apply = applyEvent, toEvent = mk
 dbFacilityMonitor :: FacilityMonitor
 dbFacilityMonitor = Monitor {identify = mfId, apply = applyEvent, toEvent = mkFacilityEvent}
   where
-    mkFacilityEvent :: Change MFacility -> EmitsEvents (FacilityEvent DB)
+    mkFacilityEvent :: Change MFacility -> EmitsEvents (FacilityEvent 'DB)
     mkFacilityEvent c = case c of
         New MF {..}   -> do
           emitEvent (FacilityIdentified mfId mfType mfDescription)
@@ -58,7 +59,7 @@ dbFacilityMonitor = Monitor {identify = mfId, apply = applyEvent, toEvent = mkFa
           when (mfDescription f1 /= mfDescription f2) (emitEvent $ FacilityDescriptionUpdated (mfId f2) (mfDescription f2))
         Deleted MF {..}    -> emitEvent (FacilityDeleted mfId)
 
-    applyEvent :: FacilityEvent DB -> Facilities -> Facilities
+    applyEvent :: FacilityEvent 'DB -> Facilities -> Facilities
     applyEvent ev = case ev of
         FacilityIdentified fid ftype desc -> insertMap fid (MF fid Nothing Nothing ftype desc)
         FacilityAssignedToObject fid objId -> adjustMap (\f -> f { mfObjectId = Just objId }) fid
@@ -71,13 +72,13 @@ dbFacilityMonitor = Monitor {identify = mfId, apply = applyEvent, toEvent = mkFa
 dbObjectMonitor :: ObjectMonitor
 dbObjectMonitor = Monitor {identify = moId, apply = applyEvent, toEvent = mkFacilityEvent}
   where
-    mkFacilityEvent :: Change MObject -> EmitsEvents (ObjectEvent DB)
+    mkFacilityEvent :: Change MObject -> EmitsEvents (ObjectEvent 'DB)
     mkFacilityEvent c = case c of
       New MO {..} -> emitEvent (ObjectIdentified moId moDescription)
       Updated _ MO {..} -> emitEvent (ObjectDescriptionUpdated moId moDescription)
       Deleted MO {..} -> emitEvent (ObjectDeleted moId)
 
-    applyEvent :: ObjectEvent DB -> Objects -> Objects
+    applyEvent :: ObjectEvent 'DB -> Objects -> Objects
     applyEvent ev = case ev of
       ObjectIdentified oid desc -> insertMap oid (MO oid desc)
       ObjectDescriptionUpdated oid desc -> adjustMap (\o -> o { moDescription = desc }) oid

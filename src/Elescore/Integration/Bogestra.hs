@@ -1,6 +1,7 @@
+{-# LANGUAGE DataKinds #-}
+
 module Elescore.Integration.Bogestra
-  ( Bogestra
-  , mkBogSource
+  ( runBogSource
   ) where
 
 import           ClassyPrelude
@@ -16,8 +17,8 @@ import           Elescore.Integration.Common.Monitoring
 import           Elescore.Integration.Common.Types
 import           Elescore.Integration.Common.Utils
 
-mkBogSource :: MonadIO m => Store -> m (Source m Bogestra)
-mkBogSource store = do
+runBogSource :: MonadIO m => Store -> m (Source 'Bogestra)
+runBogSource store = do
   (out1, in1) <- liftIO (spawn unbounded)
   (out2, in2) <- liftIO (spawn unbounded)
 
@@ -27,10 +28,19 @@ mkBogSource store = do
   fP <- facilities store
   oEvs <- liftIO (readStream store)
 
+  (out4, in4) <- liftIO (spawn unbounded)
+  (out5, in5) <- liftIO (spawn unbounded)
+  (out6, in6) <- liftIO (spawn unbounded)
+
+  liftIO $ do
+    void . forkIO . runEffect $ fromInput in1 >-> dP >-> toOutput out4
+    void . forkIO . runEffect $ fromInput in2 >-> fP >-> toOutput out5
+    runEffect (each oEvs >-> toOutput out6)
+
   return Source
-     { disruptionEvents = fromInput in1 >-> dP
-     , facilityEvents = fromInput in2 >-> fP
-     , objectEvents = each oEvs
+     { disruptionEvents = in4
+     , facilityEvents = in5
+     , objectEvents = in6
      }
 
    where
@@ -43,7 +53,7 @@ mkBogSource store = do
          Right (Just evs) -> yield evs
        waitSeconds delay
 
-disruptions :: MonadIO m => Store -> m (Pipe [Elevator] (PersistedEvent (DisruptionEvent Bogestra)) m ())
+disruptions :: MonadIO m => Store -> m (Pipe [Elevator] (PersistedEvent (DisruptionEvent 'Bogestra)) IO ())
 disruptions store = do
   disEvs <- liftIO (readStream store)
 
@@ -53,7 +63,7 @@ disruptions store = do
     >-> P.concat
     >-> eachBefore disEvs
 
-facilities :: MonadIO m => Store -> m (Pipe [Elevator] (PersistedEvent (FacilityEvent Bogestra)) m ())
+facilities :: MonadIO m => Store -> m (Pipe [Elevator] (PersistedEvent (FacilityEvent 'Bogestra)) IO ())
 facilities store = do
   fEvs <- liftIO (readStream store)
 

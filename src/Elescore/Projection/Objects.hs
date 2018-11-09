@@ -15,17 +15,17 @@ import           Control.Lens
 import           Elescore.IdTypes
 import           Elescore.Integration.Common.Types
 
-type Objects = Map SomeObjectId Object
-type Facilities = Map SomeFacilityId Facility
+type Objects = Map ObjectId Object
+type Facilities = Map FacilityId Facility
 
 data Object = Object
-  { oId          :: SomeObjectId
+  { oId          :: ObjectId
   , oDescription :: Text
   } deriving (Eq, Show)
 
 data Facility = Facility
-  { fId             :: SomeFacilityId
-  , fObjectId       :: Maybe SomeObjectId
+  { fId             :: FacilityId
+  , fObjectId       :: Maybe ObjectId
   , fType           :: FacilityType
   , fDescription    :: Text
   , fGeoCoordinates :: Maybe GeoLocation
@@ -41,22 +41,22 @@ makeLensesFor
 
 applyObjectEvent :: ObjectEvent a -> Objects -> Objects
 applyObjectEvent ev = case ev of
-  (ObjectIdentified oid desc)           -> at (toSomeObjectId oid) ?~ Object (toSomeObjectId oid) desc
-  (ObjectDescriptionUpdated oid desc)   -> at (toSomeObjectId oid) ?~ Object (toSomeObjectId oid) desc
+  (ObjectIdentified oid desc)           -> at oid ?~ Object oid desc
+  (ObjectDescriptionUpdated oid desc)   -> at oid ?~ Object oid desc
   ObjectLocated {}                      -> id
   ObjectAddressUpdated {}               -> id
   ObjectDeleted {}                      -> id
 
 applyFacilityEvent :: FacilityEvent a -> Facilities -> Facilities
 applyFacilityEvent ev = case ev of
-  (FacilityIdentified fid ft desc)      -> at (toSomeFacilityId fid) ?~ newFacility fid ft desc
-  (FacilityTypeChanged fid ft)          -> at (toSomeFacilityId fid) . _Just . _fType .~ ft
-  (FacilityAssignedToObject fid oid)    -> at (toSomeFacilityId fid) . _Just . _fObjectId ?~ toSomeObjectId oid
-  (FacilityDescriptionUpdated fid desc) -> at (toSomeFacilityId fid) . _Just . _fDescription .~ desc
-  (FacilityLocated fid geo)             -> at (toSomeFacilityId fid) . _Just . _fGeoCoordinates ?~ geo
+  (FacilityIdentified fid ft desc)      -> at fid ?~ newFacility fid ft desc
+  (FacilityTypeChanged fid ft)          -> at fid . _Just . _fType .~ ft
+  (FacilityAssignedToObject fid oid)    -> at fid . _Just . _fObjectId ?~ oid
+  (FacilityDescriptionUpdated fid desc) -> at fid . _Just . _fDescription .~ desc
+  (FacilityLocated fid geo)             -> at fid . _Just . _fGeoCoordinates ?~ geo
   FacilityAddressUpdated {}             -> id
   FacilityDeleted {}                    -> id
 
-newFacility :: FacilityId a -> FacilityType -> Text -> Facility
-newFacility fid ft desc = Facility (toSomeFacilityId fid) Nothing ft desc Nothing
+newFacility :: FacilityId -> FacilityType -> Text -> Facility
+newFacility fid ft desc = Facility fid Nothing ft desc Nothing
 

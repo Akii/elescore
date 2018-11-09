@@ -13,13 +13,13 @@ import           Elescore.IdTypes
 import           Elescore.Integration.Common.Types
 import           Elescore.Integration.DB.Types     hiding (FacilityState (..))
 
-mkFacilityId :: Integer -> FacilityId DB
+mkFacilityId :: Integer -> FacilityId
 mkFacilityId i = FacilityId ("DB-" <> tshow i)
 
-mkObjectId :: Integer -> ObjectId DB
+mkObjectId :: Integer -> ObjectId
 mkObjectId i = ObjectId ("DB-" <> tshow i)
 
-fromObjectId :: ObjectId DB -> Text
+fromObjectId :: ObjectId -> Text
 fromObjectId (ObjectId oid) = drop 3 oid
 
 mkMDisruption :: Facility -> MDisruption

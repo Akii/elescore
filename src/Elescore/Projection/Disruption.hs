@@ -16,13 +16,13 @@ import           Elescore.IdTypes
 import           Elescore.Integration
 
 data DisruptionProjection = DP
-  { dpActiveDisruptions :: Map SomeFacilityId Int
+  { dpActiveDisruptions :: Map FacilityId Int
   , dpDisruptions       :: IntMap Disruption
   } deriving (Show)
 
 data Disruption = Disruption
   { dId         :: Int
-  , dFacilityId :: SomeFacilityId
+  , dFacilityId :: FacilityId
   , dOccurredOn :: DateTime
   , dResolvedOn :: Maybe DateTime
   , dReason     :: Maybe Reason
@@ -33,7 +33,7 @@ emptyDisruptionProjection = DP mempty mempty
 
 applyDisruptionEvent :: PersistedEvent (DisruptionEvent a) -> DisruptionProjection -> DisruptionProjection
 applyDisruptionEvent PersistedEvent {..} DP {..} =
-  let someFacilityId = toSomeFacilityId (deFacilityId evPayload)
+  let someFacilityId = deFacilityId evPayload
       disruptionId =
         fromMaybe
           (length dpDisruptions + 1)
@@ -48,9 +48,9 @@ applyDisruptionEvent PersistedEvent {..} DP {..} =
 
 mkDisruption :: Int -> DateTime -> DisruptionEvent a -> Disruption
 mkDisruption i dt ev = case ev of
-  FacilityDisrupted fid r       -> Disruption i (toSomeFacilityId fid) dt Nothing (Just r)
-  DisruptionReasonUpdated fid r -> Disruption i (toSomeFacilityId fid) dt Nothing (Just r)
-  FacilityRestored fid          -> Disruption i (toSomeFacilityId fid) dt (Just dt) Nothing
+  FacilityDisrupted fid r       -> Disruption i fid dt Nothing (Just r)
+  DisruptionReasonUpdated fid r -> Disruption i fid dt Nothing (Just r)
+  FacilityRestored fid          -> Disruption i fid dt (Just dt) Nothing
 
 mergeDisruption :: Disruption -> Disruption -> Disruption
 mergeDisruption new old = Disruption
