@@ -27,15 +27,6 @@ data Integration
   | Bogestra
   | All
 
-instance HasStream (DisruptionEvent 'All) where
-  getStream = "Disruptions"
-
-instance HasStream (FacilityEvent 'All) where
-  getStream = "Facilities"
-
-instance HasStream (ObjectEvent 'All) where
-  getStream = "Objects"
-
 instance HasStream (DisruptionEvent 'DB) where
   getStream = "Disruptions.DB"
 

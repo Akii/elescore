@@ -149,9 +149,9 @@ readStream :: forall a. (HasStream a, PersistableEvent a) => Store -> IO [Persis
 readStream (Store conn _) =
   let types = eventTypes @a
       stream = getStream @a
-      params = (":stream" := (stream <> "%")) : zipWith (\i t -> (":" <> tshow i) := t) [0 .. length types] types
+      params = (":stream" := stream) : zipWith (\i t -> (":" <> tshow i) := t) [0 .. length types] types
       queryBinds = intercalate "," ((":" <>) . show <$> [0 .. length types - 1])
-      q = fromString ("SELECT id, type, stream, occurred_on, payload FROM event_store WHERE stream like :stream AND type IN (" <> queryBinds <> ") ORDER BY sequence ASC")
+      q = fromString ("SELECT id, type, stream, occurred_on, payload FROM event_store WHERE stream = :stream AND type IN (" <> queryBinds <> ") ORDER BY sequence ASC")
 
   in queryNamed conn q params
 

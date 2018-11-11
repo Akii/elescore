@@ -6,11 +6,13 @@ module Elescore.Integration.DB
   ( runDBSource
   ) where
 
-import           ClassyPrelude                          hiding (for, forM)
+import           ClassyPrelude                          hiding (for, forM, head)
+import           Data.DateTime                          (toSqlString)
 import           Network.HTTP.Client                    (Manager)
 import           Pipes
 import           Pipes.Concurrent
 import qualified Pipes.Prelude                          as P
+import           Prelude                                (head)
 
 import           Database.SimpleEventStore
 import           Elescore.IdTypes
@@ -21,6 +23,7 @@ import           Elescore.Integration.DB.Client
 import           Elescore.Integration.DB.Mapping
 import           Elescore.Integration.DB.Monitoring
 import           Elescore.Integration.DB.Types
+import           Statistics.IQR
 
 runDBSource :: MonadIO m => Store -> ApiKey -> Host -> Manager -> m (Source 'DB)
 runDBSource store key host mgr = do
@@ -80,9 +83,10 @@ disruptions store = do
   return $ P.map (fmap mkMDisruption)
     >-> monitorP dbDisruptionMonitor (replayMkSeed dbDisruptionMonitor . fmap evPayload $ disEvs)
     >-> eventStoreP store
+    >-> eachBefore (chunkBy (toSqlString . evOccurredOn) disEvs)
+    >-> disruptedApiFilter
     >-> P.concat
-    >-> eachBefore disEvs
-    >-> filterUnknownP
+    >-> filterUnknown
 
 facilities :: MonadIO m => Store -> m (Pipe [Facility] (PersistedEvent (FacilityEvent 'DB)) IO ())
 facilities store = do
@@ -102,9 +106,9 @@ objects store oEvs =
     >-> P.concat
     >-> eachBefore oEvs
 
--- | Filters out FaSta API unknown facility states effectively
-filterUnknownP :: Pipe (PersistedEvent (DisruptionEvent a)) (PersistedEvent (DisruptionEvent a)) IO ()
-filterUnknownP = for cat $ \ev ->
+-- | Filters out FaSta API unknown facility states
+filterUnknown :: Pipe (PersistedEvent (DisruptionEvent a)) (PersistedEvent (DisruptionEvent a)) IO ()
+filterUnknown = for cat $ \ev ->
   case evPayload ev of
     FacilityDisrupted _ r       -> unless (unknownReason r) (yield ev)
     DisruptionReasonUpdated _ r -> unless (unknownReason r) (yield ev)
@@ -115,3 +119,54 @@ filterUnknownP = for cat $ \ev ->
     unknownReason MonitoringNotAvailable = True
     unknownReason MonitoringDisrupted    = True
     unknownReason _                      = False
+
+type Disruptions = MonitorState FacilityId MDisruption
+
+disruptedApiFilter :: MonadIO m => Pipe [PersistedEvent (DisruptionEvent 'DB)] [PersistedEvent (DisruptionEvent 'DB)] m ()
+disruptedApiFilter = do
+  firstEvents <- await
+  let initialState = deriveState mempty firstEvents
+      initialSample = singletonSample . fromIntegral . length $ initialState
+  go initialState initialSample Nothing
+
+  where
+    go :: MonadIO m => Disruptions -> Sample -> Maybe (Disruptions, [PersistedEvent (DisruptionEvent 'DB)]) -> Pipe [PersistedEvent (DisruptionEvent 'DB)] [PersistedEvent (DisruptionEvent 'DB)] m ()
+    go previousState sample Nothing = do
+      nextEvents <- await
+      let nextState = deriveState previousState nextEvents
+          numberOfDisruptions = fromIntegral (length nextState)
+
+      if isResidual numberOfDisruptions sample
+        then go previousState sample (Just (nextState, nextEvents))
+        else yield nextEvents >> go nextState (addSample numberOfDisruptions sample) Nothing
+    go lastKnownGoodState sample (Just (previousState, accumulatedEvents)) = do
+      nextEvents <- await
+      let nextState = deriveState previousState nextEvents
+          numberOfDisruptions = fromIntegral (length nextState)
+      if isResidual numberOfDisruptions sample
+        then go lastKnownGoodState sample (Just (nextState, nextEvents ++ accumulatedEvents))
+        else do
+          yield (compensateApiDisruption lastKnownGoodState nextState accumulatedEvents)
+          go nextState (addSample numberOfDisruptions sample) Nothing
+
+    addSample :: Double -> Sample -> Sample
+    addSample a = withoutDuplicates . restrictSampleSize 200 . insertSample a
+
+    deriveState = foldl' (flip applyEvent)
+
+    applyEvent :: PersistedEvent (DisruptionEvent 'DB) -> Disruptions -> Disruptions
+    applyEvent = apply dbDisruptionMonitor . evPayload
+
+    compensateApiDisruption :: Disruptions -> Disruptions -> [PersistedEvent (DisruptionEvent 'DB)] -> [PersistedEvent (DisruptionEvent 'DB)]
+    compensateApiDisruption = undefined
+
+chunkBy :: Eq b => (a -> b) -> [a] -> [[a]]
+chunkBy _  [] = []
+chunkBy f (x:xs) =
+  let (_, as, res) = foldl' doChunk (f x, [x], []) xs
+  in reverse (reverse as : res)
+  where
+    doChunk (b, as, ass) a =
+      if f a == b
+      then (b, a : as, ass)
+      else (f a, [a], reverse as : ass)
