@@ -66,7 +66,7 @@ data DisruptionEvent (a :: Integration)
   = FacilityDisrupted { deFacilityId :: FacilityId, deReason :: Reason }
   | DisruptionReasonUpdated { deFacilityId :: FacilityId, deReason :: Reason }
   | FacilityRestored { deFacilityId :: FacilityId }
-  deriving (Show, Generic, Data)
+  deriving (Eq, Show, Generic, Data)
 
 data FacilityEvent (a :: Integration)
   = FacilityIdentified { feFacilityId :: FacilityId, feFacilityType :: FacilityType, feDescription :: Text }
@@ -76,7 +76,7 @@ data FacilityEvent (a :: Integration)
   | FacilityLocated { feFacilityId :: FacilityId, feGeoLocation :: GeoLocation }
   | FacilityAddressUpdated { feFacilityId :: FacilityId, feAddress :: Address }
   | FacilityDeleted { feFacilityId :: FacilityId }
-  deriving (Show, Generic, Data)
+  deriving (Eq, Show, Generic, Data)
 
 data ObjectEvent (a :: Integration)
   = ObjectIdentified { oeObjectId :: ObjectId, oeDescription :: Text }
@@ -84,7 +84,7 @@ data ObjectEvent (a :: Integration)
   | ObjectLocated { oeObjectId :: ObjectId, oeGeoLocation :: GeoLocation }
   | ObjectAddressUpdated { oeObjectId :: ObjectId, oeAddress :: Address }
   | ObjectDeleted { oeObjectId :: ObjectId }
-  deriving (Show, Generic, Data)
+  deriving (Eq, Show, Generic, Data)
 
 data Reason
   = UnderConstruction

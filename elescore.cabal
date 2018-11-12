@@ -7,7 +7,7 @@ cabal-version: 2.2
 -- hash: 891905bb176a526a8e494fff7a9e70c14eef7d950819ce61dba9596f093e459c
 
 name:           elescore
-version:        3.1.3
+version:        3.1.4
 description:    Please see the README on Github at <https://github.com/akii/elescore#readme>
 homepage:       https://github.com/akii/elescore#readme
 bug-reports:    https://github.com/akii/elescore/issues

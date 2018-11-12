@@ -8,6 +8,7 @@ module Elescore.Integration.DB
 
 import           ClassyPrelude                          hiding (for, forM, head)
 import           Data.DateTime                          (toSqlString)
+import           Data.Map                               (elems)
 import           Network.HTTP.Client                    (Manager)
 import           Pipes
 import           Pipes.Concurrent
@@ -137,28 +138,35 @@ disruptedApiFilter = do
           numberOfDisruptions = fromIntegral (length nextState)
 
       if isResidual numberOfDisruptions sample
-        then go previousState sample (Just (nextState, nextEvents))
+        then do
+        liftIO (putStrLn $ (pack . toSqlString . evOccurredOn $ head nextEvents) <> " Residual detected: " <> tshow (length previousState) <> " -> " <> tshow numberOfDisruptions)
+        go previousState sample (Just (nextState, nextEvents))
         else yield nextEvents >> go nextState (addSample numberOfDisruptions sample) Nothing
     go lastKnownGoodState sample (Just (previousState, accumulatedEvents)) = do
       nextEvents <- await
       let nextState = deriveState previousState nextEvents
           numberOfDisruptions = fromIntegral (length nextState)
       if isResidual numberOfDisruptions sample
-        then go lastKnownGoodState sample (Just (nextState, nextEvents ++ accumulatedEvents))
+        then go lastKnownGoodState sample (Just (nextState, accumulatedEvents ++ nextEvents))
         else do
-          yield (compensateApiDisruption lastKnownGoodState nextState accumulatedEvents)
-          go nextState (addSample numberOfDisruptions sample) Nothing
+        putStrLn $ (pack . toSqlString . evOccurredOn $ head nextEvents) <> " Back to normal: " <> tshow (length lastKnownGoodState) <> " -> " <> tshow numberOfDisruptions
+        yield (compensateApiDisruption lastKnownGoodState nextState (accumulatedEvents ++ nextEvents))
+        go nextState (addSample numberOfDisruptions sample) Nothing
 
     addSample :: Double -> Sample -> Sample
-    addSample a = withoutDuplicates . restrictSampleSize 200 . insertSample a
+    addSample a = restrictSampleSize 1000 . insertSample' a
 
     deriveState = foldl' (flip applyEvent)
 
     applyEvent :: PersistedEvent (DisruptionEvent 'DB) -> Disruptions -> Disruptions
     applyEvent = apply dbDisruptionMonitor . evPayload
 
+    -- | from all happened events, take the latest one that was supposed to be happening
     compensateApiDisruption :: Disruptions -> Disruptions -> [PersistedEvent (DisruptionEvent 'DB)] -> [PersistedEvent (DisruptionEvent 'DB)]
-    compensateApiDisruption = undefined
+    compensateApiDisruption d1 d2 evs =
+      let (_, events) = calculateChanges dbDisruptionMonitor d1 (elems d2)
+          reversedEvents = reverse evs
+      in foldl' (\acc ev -> acc ++ maybe mempty pure (find ((==) ev . evPayload) reversedEvents)) [] events
 
 chunkBy :: Eq b => (a -> b) -> [a] -> [[a]]
 chunkBy _  [] = []

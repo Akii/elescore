@@ -3,6 +3,7 @@ module Statistics.IQR
   , mkSample
   , singletonSample
   , insertSample
+  , insertSample'
   , restrictSampleSize
   , withoutDuplicates
   , median
@@ -16,7 +17,7 @@ module Statistics.IQR
   ) where
 
 import           ClassyPrelude      hiding (head)
-import           Data.List          (nub)
+import           Data.List          (nub, insert)
 import           Data.List.NonEmpty (NonEmpty (..))
 import           Prelude            (head, (!!))
 
@@ -34,7 +35,13 @@ singletonSample :: Double -> Sample
 singletonSample = Sample . pure
 
 insertSample :: Double -> Sample -> Sample
-insertSample value (Sample sample) = mkSample (value :| sample)
+insertSample value = Sample . insert value . getSample
+
+insertSample' :: Double -> Sample -> Sample
+insertSample' value s@(Sample sample) =
+  if value `elem` sample
+  then s
+  else insertSample value s
 
 withoutDuplicates :: Sample -> Sample
 withoutDuplicates = Sample . nub . getSample
@@ -48,8 +55,8 @@ restrictSampleSize n
 median :: Sample -> Double
 median (Sample sample) =
   if odd sampleLength
-    then sample !! middleIndex
-    else (sample !! (middleIndex - 1) + sample !! middleIndex) / 2
+  then sample !! middleIndex
+  else (sample !! (middleIndex - 1) + sample !! middleIndex) / 2
   where
     sampleLength = length sample
     middleIndex = sampleLength `div` 2
