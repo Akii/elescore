@@ -25,10 +25,10 @@ data Env = Env
   { envConfig         :: Config
   , envRequestManager :: Manager
   , envStore          :: Store
-  , envDisruptions    :: TVar DisruptionProjection
+  , envDisruptions    :: IORef DisruptionProjection
   , envDowntimes      :: IORef SumOfDowntimes
-  , envObjects        :: TVar Objects
-  , envFacilities     :: TVar Facilities
+  , envObjects        :: IORef Objects
+  , envFacilities     :: IORef Facilities
   }
 
 newtype Elescore a = Elescore
@@ -47,10 +47,10 @@ mkEnv :: Config -> IO Env
 mkEnv c = do
   mgr <- newManager tlsManagerSettings
   conn <- mkStore (cfgDatabase c)
-  diss <- newTVarIO emptyDisruptionProjection
+  diss <- newIORef emptyDisruptionProjection
   dtimes <- newIORef mempty
-  objs <- newTVarIO mempty
-  fs <- newTVarIO mempty
+  objs <- newIORef mempty
+  fs <- newIORef mempty
   return $ Env c mgr conn diss dtimes objs fs
 
 runElescore :: Env -> Elescore a -> IO a
@@ -70,16 +70,16 @@ reqManager = Elescore $ asks envRequestManager
 store :: Elescore Store
 store = Elescore $ asks envStore
 
-disruptions :: Elescore (TVar DisruptionProjection)
+disruptions :: Elescore (IORef DisruptionProjection)
 disruptions = Elescore $ asks envDisruptions
 
 downtimes :: Elescore (IORef SumOfDowntimes)
 downtimes = Elescore $ asks envDowntimes
 
-objects :: Elescore (TVar Objects)
+objects :: Elescore (IORef Objects)
 objects = Elescore $ asks envObjects
 
-facilities :: Elescore (TVar Facilities)
+facilities :: Elescore (IORef Facilities)
 facilities = Elescore $ asks envFacilities
 
 config :: (Config -> a) -> Elescore a

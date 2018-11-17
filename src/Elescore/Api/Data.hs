@@ -6,13 +6,10 @@ module Elescore.Api.Data
   , dataServer
   ) where
 
-import           ClassyPrelude       hiding (Handler)
-import qualified Data.IntMap         as IM
-import qualified Data.Map            as M
+import           ClassyPrelude      hiding (Handler)
 import           Servant
 
 import           Elescore.Api.Types
-import           Elescore.Projection
 
 type DataApi =
        "disruptions" :> DisruptionApi
@@ -21,21 +18,13 @@ type DataApi =
 type DisruptionApi =
        "marker" :> Get '[JSON] [DisruptionMarker]
 
-dataServer :: TVar DisruptionProjection -> IORef SumOfDowntimes -> TVar Objects -> TVar Facilities -> Server DataApi
-dataServer dis dt objs fs =
-  disruptionMarkerHandler dis objs fs
-  :<|> listStationsHandler dt objs fs
+dataServer :: IORef [DisruptionMarker] -> IORef [UIStation] -> Server DataApi
+dataServer marker stations =
+  disruptionMarkerHandler marker
+  :<|> listStationsHandler stations
 
-disruptionMarkerHandler :: TVar DisruptionProjection -> TVar Objects -> TVar Facilities -> Handler [DisruptionMarker]
-disruptionMarkerHandler dis objsR fsR = do
-  objs <- liftIO (readTVarIO objsR)
-  fs <- liftIO (readTVarIO fsR)
-  diss <- liftIO $ filter (isNothing . dResolvedOn) . IM.elems . dpDisruptions <$> readTVarIO dis
-  return . catMaybes $ map (fromDisruption objs fs) diss
+disruptionMarkerHandler :: IORef [DisruptionMarker] -> Handler [DisruptionMarker]
+disruptionMarkerHandler = liftIO . readIORef
 
-listStationsHandler :: IORef SumOfDowntimes -> TVar Objects -> TVar Facilities -> Handler [UIStation]
-listStationsHandler dt objsR fsR = do
-  sodt <- liftIO (readIORef dt)
-  objs <- liftIO (readTVarIO objsR)
-  fs <- liftIO (readTVarIO fsR)
-  return $ fmap (fromStation sodt fs) (M.elems objs)
+listStationsHandler :: IORef [UIStation] -> Handler [UIStation]
+listStationsHandler = liftIO . readIORef

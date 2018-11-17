@@ -45,13 +45,13 @@ elepipe = do
           runEffect (fromInput (objectEvents allSource) >-> P.map evPayload >-> projectionP objRef applyObjectEvent),
           runDowntimeProjection dtRef dpRef]
 
-projectionP :: TVar a -> (ev -> a -> a) -> Consumer ev Elescore ()
-projectionP ref f = for cat $ liftIO . atomically . modifyTVar' ref . f
+projectionP :: IORef a -> (ev -> a -> a) -> Consumer ev Elescore ()
+projectionP ref f = for cat $ liftIO . modifyIORef' ref . f
 
-runDowntimeProjection :: IORef SumOfDowntimes -> TVar DisruptionProjection -> Elescore ()
+runDowntimeProjection :: IORef SumOfDowntimes -> IORef DisruptionProjection -> Elescore ()
 runDowntimeProjection dtRef dpRef = forever $ do
   currT <- liftIO getCurrentTime
-  diss <- liftIO (readTVarIO dpRef)
+  diss <- liftIO (readIORef dpRef)
 
   let minus1Day = addMinutes (-1440) currT
       minus30Days = addMinutes (-30 * 1440) currT

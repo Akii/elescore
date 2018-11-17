@@ -1,5 +1,7 @@
-{-# LANGUAGE DeriveDataTypeable #-}
-{-# LANGUAGE TemplateHaskell    #-}
+{-# LANGUAGE DeriveDataTypeable         #-}
+{-# LANGUAGE DeriveGeneric              #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE TemplateHaskell            #-}
 
 module Elescore.IdTypes where
 
@@ -13,11 +15,11 @@ import           Data.Data
 
 newtype ObjectId = ObjectId
   { getObjectId :: Text
-  } deriving (Eq, Ord, Data, Show)
+  } deriving (Generic, NFData, Eq, Ord, Data, Show)
 
 newtype FacilityId = FacilityId
   { getFacilityId :: Text
-  } deriving (Eq, Ord, Data, Show)
+  } deriving (Generic, NFData, Eq, Ord, Data, Show)
 
 instance FromJSONKey ObjectId where
   fromJSONKey = ObjectId <$> fromJSONKey

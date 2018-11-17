@@ -1,5 +1,6 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE DataKinds           #-}
+{-# LANGUAGE DeriveAnyClass      #-}
 {-# LANGUAGE DeriveDataTypeable  #-}
 {-# LANGUAGE DeriveFunctor       #-}
 {-# LANGUAGE DeriveGeneric       #-}
@@ -94,24 +95,24 @@ data Reason
   | MonitoringNotAvailable
   | NoneGiven
   | Unknown Text
-  deriving (Eq, Data, Show)
+  deriving (Generic, NFData, Eq, Data, Show)
 
 data FacilityType
   = Elevator
   | Escalator
-  deriving (Eq, Data, Show)
+  deriving (Generic, NFData, Eq, Data, Show)
 
 data Address = Address
   { addrStreet      :: Maybe Text
   , addrHouseNumber :: Maybe Text
   , addrZipCode     :: Maybe Text
   , addrCity        :: Maybe Text
-  } deriving (Eq, Data, Show)
+  } deriving (Generic, NFData, Eq, Data, Show)
 
 data GeoLocation = GeoLocation
   { lat :: Double
   , lng :: Double
-  } deriving (Eq, Data, Show)
+  } deriving (Generic, NFData, Eq, Data, Show)
 
 ----------------------
 -- JSON instances

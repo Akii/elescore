@@ -1,3 +1,5 @@
+{-# LANGUAGE DeriveAnyClass  #-}
+{-# LANGUAGE DeriveGeneric   #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TemplateHaskell #-}
 
@@ -23,13 +25,13 @@ data DisruptionMarker = DisruptionMarker
   , disReason              :: Maybe Text
   , disSince               :: DateTime
   , disGeoCoordinates      :: Maybe GeoLocation
-  } deriving (Eq, Show)
+  } deriving (Generic, NFData, Eq, Show)
 
 data UIStation = UIStation
   { uisId         :: ObjectId
   , uisName       :: Text
   , uisFacilities :: Map FacilityId UIFacility
-  } deriving (Eq, Show)
+  } deriving (Generic, NFData, Eq, Show)
 
 data UIFacility = UIFacility
   { uifId             :: FacilityId
@@ -38,7 +40,7 @@ data UIFacility = UIFacility
   , uifDescription    :: Maybe Text
   , uifGeoCoordinates :: Maybe GeoLocation
   , uifDowntime       :: Integer
-  } deriving (Eq, Show)
+  } deriving (Generic, NFData, Eq, Show)
 
 fromDisruption :: Objects -> Facilities -> Disruption -> Maybe DisruptionMarker
 fromDisruption objs fs Disruption {..} = do
@@ -75,7 +77,7 @@ mapFacility fDowntime =
 
 mapDescription :: Text -> Maybe Text
 mapDescription "Unknown" = Nothing
-mapDescription a = Just a
+mapDescription a         = Just a
 
 deriveJSON defaultOptions { fieldLabelModifier = (\(x:xs) -> toLower x : xs) . drop 3 } ''DisruptionMarker
 deriveJSON defaultOptions { fieldLabelModifier = (\(x:xs) -> toLower x : xs) . drop 3 } ''UIStation

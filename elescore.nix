@@ -8,7 +8,7 @@
 }:
 mkDerivation {
   pname = "elescore";
-  version = "3.1.4";
+  version = "3.1.5";
   src = ./.;
   isLibrary = true;
   isExecutable = true;

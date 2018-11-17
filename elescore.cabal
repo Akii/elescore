@@ -4,10 +4,10 @@ cabal-version: 2.2
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 891905bb176a526a8e494fff7a9e70c14eef7d950819ce61dba9596f093e459c
+-- hash: 52a6c668ac57078657f9b49682aba9c4e17b74fd8493bf08584b264ce7893adf
 
 name:           elescore
-version:        3.1.4
+version:        3.1.5
 description:    Please see the README on Github at <https://github.com/akii/elescore#readme>
 homepage:       https://github.com/akii/elescore#readme
 bug-reports:    https://github.com/akii/elescore/issues
