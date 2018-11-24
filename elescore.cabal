@@ -4,10 +4,10 @@ cabal-version: 2.2
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 52a6c668ac57078657f9b49682aba9c4e17b74fd8493bf08584b264ce7893adf
+-- hash: f6a1ab48553c5ee6133f539cc6e3c99b037f341a67023fc02e6f8ac16cc452f6
 
 name:           elescore
-version:        3.1.5
+version:        3.2.0
 description:    Please see the README on Github at <https://github.com/akii/elescore#readme>
 homepage:       https://github.com/akii/elescore#readme
 bug-reports:    https://github.com/akii/elescore/issues
@@ -49,6 +49,7 @@ library
       Elescore.Pipeline
       Elescore.Projection
       Elescore.Projection.Disruption
+      Elescore.Projection.DisruptionsPerDay
       Elescore.Projection.Downtime
       Elescore.Projection.Objects
       Elescore.Types
@@ -81,6 +82,7 @@ library
     , scalpel-core
     , servant
     , servant-client
+    , servant-pagination
     , servant-server
     , signal
     , sqlite-simple

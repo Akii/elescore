@@ -21,13 +21,15 @@ import           Elescore.Projection          (DisruptionProjection (dpDisruptio
                                                SumOfDowntimes,
                                                applyDisruptionEvent,
                                                applyFacilityEvent,
-                                               applyObjectEvent)
+                                               applyObjectEvent,
+                                               applyDisruptionPerDayEvent)
 import qualified Elescore.Projection.Downtime as DT
 import           Elescore.Types
 
 elepipe :: Elescore (Async ())
 elepipe = do
   dpRef <- disruptions
+  dpPDRef <- disruptionsPerDay
   facRef <- facilities
   objRef <- objects
   dtRef <- downtimes
@@ -40,7 +42,7 @@ elepipe = do
   bogSource <- runBogSource s
   let allSource = coerce dbSource <> coerce bogSource
 
-  elepar [runEffect (fromInput (disruptionEvents allSource) >-> projectionP dpRef applyDisruptionEvent),
+  elepar [runEffect (fromInput (disruptionEvents allSource) >-> P.tee (projectionP dpPDRef applyDisruptionPerDayEvent) >-> projectionP dpRef applyDisruptionEvent),
           runEffect (fromInput (facilityEvents allSource) >-> P.map evPayload >-> projectionP facRef applyFacilityEvent),
           runEffect (fromInput (objectEvents allSource) >-> P.map evPayload >-> projectionP objRef applyObjectEvent),
           runDowntimeProjection dtRef dpRef]
