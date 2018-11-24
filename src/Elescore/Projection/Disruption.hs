@@ -9,7 +9,7 @@ module Elescore.Projection.Disruption
 
 import           ClassyPrelude
 import           Data.DateTime
-import qualified Data.IntMap as IM
+import qualified Data.IntMap               as IM
 
 import           Database.SimpleEventStore
 import           Elescore.IdTypes
@@ -24,6 +24,7 @@ data Disruption = Disruption
   { dId         :: Int
   , dFacilityId :: FacilityId
   , dOccurredOn :: DateTime
+  , dUpdatedOn  :: Maybe DateTime
   , dResolvedOn :: Maybe DateTime
   , dReason     :: Maybe Reason
   } deriving (Show)
@@ -48,14 +49,15 @@ applyDisruptionEvent PersistedEvent {..} DP {..} =
 
 mkDisruption :: Int -> DateTime -> DisruptionEvent a -> Disruption
 mkDisruption i dt ev = case ev of
-  FacilityDisrupted fid r       -> Disruption i fid dt Nothing (Just r)
-  DisruptionReasonUpdated fid r -> Disruption i fid dt Nothing (Just r)
-  FacilityRestored fid          -> Disruption i fid dt (Just dt) Nothing
+  FacilityDisrupted fid r       -> Disruption i fid dt Nothing Nothing (Just r)
+  DisruptionReasonUpdated fid r -> Disruption i fid dt (Just dt) Nothing (Just r)
+  FacilityRestored fid          -> Disruption i fid dt Nothing (Just dt) Nothing
 
 mergeDisruption :: Disruption -> Disruption -> Disruption
 mergeDisruption new old = Disruption
       (dId new)
       (dFacilityId new)
       (dOccurredOn old)
+      (dUpdatedOn new <|> dUpdatedOn old)
       (dResolvedOn new <|> dResolvedOn old)
       (dReason new <|> dReason old)

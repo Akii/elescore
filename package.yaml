@@ -51,6 +51,7 @@ library:
   - servant
   - servant-client
   - servant-server
+  - servant-pagination
   - signal
   - sqlite-simple
   - tagsoup

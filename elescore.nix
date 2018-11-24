@@ -2,7 +2,7 @@
 , classy-prelude, containers, datetime, exceptions, free
 , http-api-data, http-client, http-client-tls, lens, mtl, pipes
 , pipes-concurrency, raw-strings-qq, servant, servant-client
-, servant-server, signal, sqlite-simple, stdenv, text, time
+, servant-server, servant-pagination, signal, sqlite-simple, stdenv, text, time
 , tinylog, unordered-containers, uuid, warp, scalpel-core, tagsoup
 , wreq
 }:
@@ -16,7 +16,7 @@ mkDerivation {
     aeson async attoparsec base bytestring classy-prelude containers
     datetime exceptions free http-api-data http-client http-client-tls
     lens mtl pipes pipes-concurrency raw-strings-qq servant
-    servant-client servant-server signal sqlite-simple text time
+    servant-client servant-server servant-pagination signal sqlite-simple text time
     tinylog unordered-containers uuid warp scalpel-core tagsoup wreq
   ];
   executableHaskellDepends = [ base ];

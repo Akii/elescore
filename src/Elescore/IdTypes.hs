@@ -12,6 +12,7 @@ import           Data.Aeson.TH
 import           Data.Aeson.Types    (FromJSONKey (..), ToJSONKey (..),
                                       ToJSONKeyFunction (ToJSONKeyText))
 import           Data.Data
+import Servant
 
 newtype ObjectId = ObjectId
   { getObjectId :: Text
@@ -38,6 +39,12 @@ instance ToJSONKey FacilityId where
     where
       f (FacilityId i) = i
       g = text . f
+
+instance FromHttpApiData FacilityId where
+  parseUrlPiece = pure . FacilityId
+
+instance ToHttpApiData FacilityId where
+  toUrlPiece = getFacilityId
 
 concat <$> mapM
   (deriveJSON defaultOptions {unwrapUnaryRecords = True})

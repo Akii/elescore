@@ -4,6 +4,9 @@ module Elescore.Projection
   , emptyDisruptionProjection
   , applyDisruptionEvent
 
+  , DisruptionsPerDay
+  , applyDisruptionPerDayEvent
+
   , SumOfDowntimes
   , computeDowntimes
 
@@ -16,5 +19,6 @@ module Elescore.Projection
   ) where
 
 import           Elescore.Projection.Disruption
+import           Elescore.Projection.DisruptionsPerDay
 import           Elescore.Projection.Downtime
 import           Elescore.Projection.Objects
