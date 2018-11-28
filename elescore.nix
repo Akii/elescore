@@ -20,9 +20,7 @@ mkDerivation {
     sqlite-simple tagsoup text time unordered-containers uri-bytestring
     uuid warp wreq
   ];
-  libraryToolDepends = [ hpack ];
   executableHaskellDepends = [ base ];
-  preConfigure = "hpack";
   homepage = "https://github.com/akii/elescore#readme";
   license = stdenv.lib.licenses.bsd3;
 }
