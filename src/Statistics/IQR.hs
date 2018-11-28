@@ -7,6 +7,7 @@ module Statistics.IQR
   , restrictSampleSize
   , withoutDuplicates
   , median
+  , average
   , lowerQuartile
   , upperQuartile
   , iqr
@@ -60,6 +61,9 @@ median (Sample sample) =
   where
     sampleLength = length sample
     middleIndex = sampleLength `div` 2
+
+average :: Sample -> Double
+average (Sample sample) = sum sample / fromIntegral (length sample)
 
 lowerQuartile :: Sample -> Double
 lowerQuartile (Sample sample) =

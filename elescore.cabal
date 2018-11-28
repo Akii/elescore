@@ -1,20 +1,20 @@
-cabal-version: 2.2
+cabal-version: 1.12
 
 -- This file has been generated from package.yaml by hpack version 0.31.0.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: f6a1ab48553c5ee6133f539cc6e3c99b037f341a67023fc02e6f8ac16cc452f6
+-- hash: 4a4ebc9554f6d023abf473dfaf967eb2e87e5acba675ec03b6df21b7c4ba653e
 
 name:           elescore
-version:        3.2.0
+version:        3.2.1
 description:    Please see the README on Github at <https://github.com/akii/elescore#readme>
 homepage:       https://github.com/akii/elescore#readme
 bug-reports:    https://github.com/akii/elescore/issues
 author:         Philipp Maier
 maintainer:     zedd@akii.de
 copyright:      2017 Philipp Maier
-license:        BSD-3-Clause
+license:        BSD3
 license-file:   LICENSE
 build-type:     Simple
 extra-source-files:

@@ -14,14 +14,15 @@ module Elescore.Api.Data
 
 import           ClassyPrelude                         hiding (Handler)
 import           Data.DateTime                         (DateTime)
+import qualified Data.Map                              as M
 import qualified Data.Text                             as T
-import qualified Data.Map as M
 import           Servant
 import           Servant.Pagination
 
 import           Elescore.Api.Types
 import           Elescore.IdTypes
 import           Elescore.Projection.DisruptionsPerDay (DisruptionsPerDay)
+import           Statistics.IQR                        (average)
 
 type AppliedRanges ranges a = Ranges ranges a
 type PagReqHeaders ranges a = Header "Range" (AppliedRanges ranges a)
@@ -68,7 +69,7 @@ statsApi :: IORef UIOverallStats -> IORef DisruptionsPerDay -> Server StatsApi
 statsApi statsRef disPerDayRef =
   readIORef statsRef :<|> disPerDayHandler
   where
-    disPerDayHandler = reverse . fmap mkUIDisruptionPerDay . take 30 . drop 1 . reverse . M.toList . snd <$> readIORef disPerDayRef
+    disPerDayHandler = reverse . fmap mkUIDisruptionPerDay . take 30 . drop 1 . reverse . M.toList . fmap average .  snd <$> readIORef disPerDayRef
 
 disruptionsApi :: IORef [UIDisruption] -> IORef [UIMapMarker] -> Server DisruptionApi
 disruptionsApi disRef markerRef =

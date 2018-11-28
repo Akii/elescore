@@ -11,30 +11,24 @@ import           Data.DateTime                     hiding (toGregorian)
 import           Database.SimpleEventStore
 import           Elescore.IdTypes
 import           Elescore.Integration.Common.Types
+import           Statistics.IQR
 
 type Date = Text
-type DisruptionsPerDay = (Set FacilityId, Map Date Double)
+type DisruptionsPerDay = (Set FacilityId, Map Date Sample)
 
 applyDisruptionPerDayEvent :: PersistedEvent (DisruptionEvent a) -> DisruptionsPerDay -> DisruptionsPerDay
 applyDisruptionPerDayEvent PersistedEvent {..} =
   case evPayload of
-    FacilityDisrupted fid _ -> addDisruption fid (toDate evOccurredOn)
-    FacilityRestored fid    -> removeDisruption fid (toDate evOccurredOn)
+    FacilityDisrupted fid _ -> addSample (insertSet fid) (toDate evOccurredOn)
+    FacilityRestored fid    -> addSample (deleteSet fid) (toDate evOccurredOn)
     _                       -> id
 
-addDisruption :: FacilityId -> Date -> DisruptionsPerDay -> DisruptionsPerDay
-addDisruption fid date (set, xs) =
-  let newSet = insertSet fid set
-      setLength = fromIntegral (length newSet)
-      oldNum = findWithDefault setLength date xs
-  in (newSet, insertMap date ((oldNum + setLength) / 2) xs)
-
-removeDisruption :: FacilityId -> Date -> DisruptionsPerDay -> DisruptionsPerDay
-removeDisruption fid date (set, xs) =
-  let newSet = deleteSet fid set
-      setLength = fromIntegral (length newSet)
-      oldNum = findWithDefault setLength date xs
-  in (newSet, insertMap date ((oldNum + setLength) / 2) xs)
+addSample :: (Set FacilityId -> Set FacilityId) -> Date -> DisruptionsPerDay -> DisruptionsPerDay
+addSample f date (set, xs) =
+  let newSet = f set
+      numberOfDisruptions = fromIntegral (length newSet)
+      xs' = insertWith (<>) date (singletonSample numberOfDisruptions) xs
+  in (newSet, xs')
 
 toDate :: DateTime -> Date
 toDate dt =
