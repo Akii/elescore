@@ -69,7 +69,7 @@ statsApi :: IORef UIOverallStats -> IORef DisruptionsPerDay -> Server StatsApi
 statsApi statsRef disPerDayRef =
   readIORef statsRef :<|> disPerDayHandler
   where
-    disPerDayHandler = reverse . fmap mkUIDisruptionPerDay . take 30 . drop 1 . reverse . M.toList . fmap average .  snd <$> readIORef disPerDayRef
+    disPerDayHandler = reverse . fmap mkUIDisruptionPerDay . take 31 . drop 1 . reverse . M.toList . fmap average .  snd <$> readIORef disPerDayRef
 
 disruptionsApi :: IORef [UIDisruption] -> IORef [UIMapMarker] -> Server DisruptionApi
 disruptionsApi disRef markerRef =
