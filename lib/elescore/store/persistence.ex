@@ -5,6 +5,7 @@ defmodule Elescore.Store.Persistence do
 
   use GenServer
   alias Elescore.Store.Event
+  alias Elescore.Store.Event.{FacilityDisrupted, DisruptionReasonUpdated, FacilityRestored}
 
   def start_link() do
     GenServer.start_link(__MODULE__, nil, name: __MODULE__)
@@ -76,17 +77,45 @@ defmodule Elescore.Store.Persistence do
 
   defp to_event(row) do
     {:blob, payload} = row.payload
+    type = String.to_atom(row.type)
+    {:ok, occurred_on, _} = DateTime.from_iso8601(row.occurred_on <> "Z")
 
     # TODO: convert payload to actual type
 
     %Event{
       id: row.id,
       sequence: row.sequence,
-      type: String.to_atom(row.type),
+      type: type,
       stream_name: String.to_atom(row.stream_name),
-      payload: Jason.decode!(payload),
+      payload: decode_payload(type, Jason.decode!(payload)),
       metadata: %{},
-      occurred_on: DateTime.from_iso8601(row.occurred_on)
+      occurred_on: occurred_on
+    }
+  end
+
+  defp decode_payload(:"de.elescore.integration.v1.FacilityDisrupted", payload) do
+    %{"facilityId" => facility_id, "reason" => reason} = payload
+
+    %FacilityDisrupted{
+      facilityId: facility_id,
+      reason: reason
+    }
+  end
+
+  defp decode_payload(:"de.elescore.integration.v1.DisruptionReasonUpdated", payload) do
+    %{"facilityId" => facility_id, "reason" => reason} = payload
+
+    %DisruptionReasonUpdated{
+      facilityId: facility_id,
+      reason: reason
+    }
+  end
+
+  defp decode_payload(:"de.elescore.integration.v1.FacilityRestored", payload) do
+    %{"facilityId" => facility_id} = payload
+
+    %FacilityRestored{
+      facilityId: facility_id
     }
   end
 
