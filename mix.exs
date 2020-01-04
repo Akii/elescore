@@ -14,7 +14,7 @@ defmodule Elescore.MixProject do
   def application do
     [
       extra_applications: [:logger],
-      mod: {Elescore.Application, []}
+      mod: {Elescore, []}
     ]
   end
 
@@ -22,7 +22,8 @@ defmodule Elescore.MixProject do
     [
       {:uuid, "~> 1.1"},
       {:credo, "~> 1.1.0", only: [:dev, :test], runtime: false},
-      {:sqlitex, "~> 1.7"}
+      {:sqlitex, "~> 1.7"},
+      {:jason, "~> 1.1"}
     ]
   end
 end

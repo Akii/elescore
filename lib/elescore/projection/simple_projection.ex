@@ -7,37 +7,27 @@ defmodule Elescore.Projection.SimpleProjection do
     quote do
       alias Elescore.Store
 
+      def start_link() do
+        GenServer.start_link(__MODULE__, nil,  name: __MODULE__)
+      end
+
       def init(_arg) do
-        {:ok, sub} = Store.subscribe(stream_name())
-        Process.send_after(self(), :project, 1000)
-        {:ok, {sub, init_state()}}
+        {:ok, _sub} = Store.subscribe(stream_name())
+        {:ok, init_state()}
       end
 
-      def start_link(options \\ []) do
-        GenServer.start_link(__MODULE__, nil, options)
+      def handle_call({:next_events, events}, _from, state) do
+        new_state = Enum.reduce(events, state, &apply_event/2)
+        {:reply, :processed, new_state}
       end
 
-      def terminate(_reason, {sub, _state}) do
-        GenServer.stop(sub)
-      end
-
-      def handle_info(:project, {sub, state}) do
-        {:ok, next_events} = Store.get_next_events(sub)
-
-        new_state = Enum.reduce(next_events, state, &apply_event/2)
-        timeout = if Enum.empty?(next_events), do: 1000, else: 0
-
-        Process.send_after(self(), :project, timeout)
-        {:noreply, {sub, new_state}}
-      end
-
-      def handle_call(:get_state, _from, {sub, state}) do
-        {:reply, state, {sub, state}}
+      def handle_call(:get_state, _from, state) do
+        {:reply, state, state}
       end
 
       # Defoverridable makes the given functions in the current module overridable
       # Without defoverridable, new definitions of greet will not be picked up
-      defoverridable [init: 1, start_link: 1, handle_info: 2, handle_call: 3]
+      defoverridable [init: 1, handle_call: 3]
     end
   end
 end

@@ -1,18 +1,14 @@
 defmodule Elescore do
-  @moduledoc """
-  Documentation for Elescore.
-  """
+  use Application
 
-  @doc """
-  Hello world.
+  defmodule Config do
+    defstruct databaseFile: ""
+  end
 
-  ## Examples
-
-      iex> Elescore.hello()
-      :world
-
-  """
-  def hello do
-    :world
+  def start(_type, _args) do
+    cfg = %Config {
+      databaseFile: "./persistence/dbv31.sqlite"
+    }
+    Elescore.Supervisor.start_link(cfg)
   end
 end

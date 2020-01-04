@@ -4,62 +4,72 @@ defmodule Elescore.Store.Subscription do
   """
 
   use GenServer
-  alias Elescore.Store.Event
-
-  def child_spec(args) do
-    %{
-      id: {__MODULE__, UUID.uuid4()},
-      start: {__MODULE__, :start_link, [args]},
-      restart: :temporary
-    }
-  end
+  alias Elescore.Store.{Event, Persistence}
 
   def start_link(args) do
     GenServer.start_link(__MODULE__, args)
   end
 
-  def init(state) do
-    relevant_events = state.events |> Enum.filter(&(&1.stream_name == state.stream_name))
-
-    {:ok, Map.put(state, :events, relevant_events)}
+  def init(%{subscriber: subscriber} = state) do
+    Process.link(subscriber)
+    send(self(), :replay)
+    {:ok, state}
   end
 
-  def subscribe_to(stream_name, events, batch_size) do
-    DynamicSupervisor.start_child(
-      Elescore.Supervisor.Store.Subscription,
-      {__MODULE__,
-       %{
-         stream_name: stream_name,
-         events: events,
-         batch_size: batch_size
-       }}
+  def subscribe(stream_name, batch_size) do
+    args = %{
+      subscriber: self(),
+      stream_name: stream_name,
+      batch_size: batch_size,
+      current_sequence: 0,
+      mode: :replay
+    }
+
+    Supervisor.start_child(
+      Elescore.Store.SubscriptionSupervisor,
+      %{
+        id: {__MODULE__, UUID.uuid4()},
+        start: {__MODULE__, :start_link, [args]},
+        restart: :temporary
+      }
     )
   end
 
-  def get_next_events(subscription) do
-    GenServer.call(subscription, :get_next_events)
-  end
+  def handle_info(:replay, state) do
+    %{
+      stream_name: stream_name,
+      current_sequence: current_sequence,
+      batch_size: batch_size,
+      subscriber: subscriber
+    } = state
 
-  def unsubscribe(subscription) do
-    GenServer.stop(subscription)
-  end
+    result = Persistence.read(stream_name, current_sequence, batch_size)
 
-  def handle_call(:get_next_events, _from, state) do
-    {next_events, remaining_events} = take_n_events(state.events, state.batch_size)
-    new_state = Map.put(state, :events, remaining_events)
-    {:reply, {:ok, next_events}, new_state}
-  end
+    case result do
+      {:ok, events, next_sequence} ->
+        new_state = %{state | current_sequence: next_sequence}
+        :processed = GenServer.call(subscriber, {:next_events, events})
+        send(self(), :replay)
+        {:noreply, new_state}
 
-  def handle_call({:handle_event, %Event{} = event}, _from, state) do
-    if event.stream_name == state.stream_name do
-      added_event = state.events ++ [event]
-      {:reply, :ok, Map.put(state, :events, added_event)}
-    else
-      {:reply, :ok, state}
+      :end_of_stream ->
+        {:noreply, %{state | mode: :continue}}
     end
   end
 
-  defp take_n_events(events, size) do
-    {Enum.take(events, size), Enum.drop(events, size)}
+  def handle_cast({:handle_event, %Event{sequence: sequence} = event}, _from, state) do
+    %{current_sequence: current_sequence, mode: mode, subscriber: subscriber} = state
+
+    case mode do
+      :replay ->
+        {:noreply, state}
+
+      :continue when sequence <= current_sequence ->
+        {:noreply, state}
+
+      :continue ->
+        GenServer.call(subscriber, {:next_events, [event]})
+        {:noreply, %{state | current_sequence: sequence}}
+    end
   end
 end

@@ -4,21 +4,21 @@ defmodule Elescore.Store.Persistence do
   """
 
   use GenServer
-  alias Elescore.Store.{Event, Subscription}
+  alias Elescore.Store.Event
 
-  def init(events) do
-    {:ok, events}
+  def start_link() do
+    GenServer.start_link(__MODULE__, nil, name: __MODULE__)
   end
 
-  def start_link(options \\ []) do
-    GenServer.start_link(__MODULE__, [], options)
+  def init(arg) do
+    {:ok, arg}
   end
 
-  def append(stream_name, type, payload, metadata \\ %{}) do
+  def append(stream_name, payload, metadata \\ %{}) do
     event =
       Event.new(
         UUID.uuid4(),
-        type,
+        Event.event_type(payload),
         stream_name,
         payload,
         metadata
@@ -27,31 +27,72 @@ defmodule Elescore.Store.Persistence do
     GenServer.call(__MODULE__, {:append, event})
   end
 
-  def subscribe(stream_name, batch_size) do
-    GenServer.call(__MODULE__, {:subscribe, stream_name, batch_size})
+  def read(stream_name, start_sequence, number_of_events) do
+    GenServer.call(__MODULE__, {:read, stream_name, start_sequence, number_of_events})
   end
 
-  def handle_call({:append, %Event{} = event}, _from, events) do
+  def handle_call({:append, %Event{} = event}, _from, state) do
+    # todo
+    # insert
+    # get sequence
+    # update event
+    # broadcast
+
     GenServer.cast(self(), {:broadcast_event, event})
-    {:reply, :ok, events ++ [event]}
+    {:reply, {:ok, event}, state}
   end
 
-  def handle_call({:subscribe, stream_name, batch_size}, _from, events) do
-    result = Subscription.subscribe_to(stream_name, events, batch_size)
-    {:reply, result, events}
+  def handle_call({:read, stream_name, start_sequence, number_of_events}, _from, state) do
+    {:ok, rows} =
+      Sqlitex.Server.query(
+        Elescore.Store.EventStore,
+        """
+        SELECT id, sequence, type, stream AS stream_name, occurred_on, payload
+        FROM event_store
+        WHERE stream = ?1 AND sequence > ?2
+        LIMIT ?3
+        """,
+        into: %{},
+        bind: [stream_name, start_sequence, number_of_events]
+      )
+
+    events = rows |> Enum.map(&to_event/1)
+
+    if Enum.empty?(events) do
+      {:reply, :end_of_stream, state}
+    else
+      next_sequence = events |> Enum.map(& &1.sequence) |> Enum.max()
+      {:reply, {:ok, events, next_sequence}, state}
+    end
   end
 
-  def handle_cast({:broadcast_event, event}, events) do
-    Elescore.Supervisor.Store.Subscription
-    |> DynamicSupervisor.which_children
+  def handle_cast({:broadcast_event, event}, state) do
+    Elescore.Store.SubscriptionSupervisor
+    |> Supervisor.which_children()
     |> Enum.each(&notify_child(&1, event))
 
-    {:noreply, events}
+    {:noreply, state}
   end
 
-  defp notify_child({:undefined, pid, :worker, [Elescore.Store.Subscription]}, event) do
-    GenServer.call(pid, {:handle_event, event})
+  defp to_event(row) do
+    {:blob, payload} = row.payload
+
+    # TODO: convert payload to actual type
+
+    %Event{
+      id: row.id,
+      sequence: row.sequence,
+      type: String.to_atom(row.type),
+      stream_name: String.to_atom(row.stream_name),
+      payload: Jason.decode!(payload),
+      metadata: %{},
+      occurred_on: DateTime.from_iso8601(row.occurred_on)
+    }
   end
+
+  defp notify_child({_, pid, :worker, [Elescore.Store.Subscription]}, event) do
+    GenServer.cast(pid, {:handle_event, event})
+  end
+
   defp notify_child(_child, _event), do: nil
-
 end
