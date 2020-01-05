@@ -9,11 +9,10 @@ defmodule Elescore.Projection.Downtimes do
   def init(_arg) do
     # We wait a bit for the disruption projection
     Process.send_after(self(), :calculate_downtimes, 15_000)
-    downtimes_store = :ets.new(:projection_downtimes, [:named_table])
-    {:ok, downtimes_store}
+    {:ok, %{}}
   end
 
-  def handle_info(:calculate_downtimes, store) do
+  def handle_info(:calculate_downtimes, _state) do
     now = DateTime.utc_now()
     thirty_days_ago = DateTime.add(now, -thirty_days_in_seconds(), :second)
 
@@ -26,11 +25,8 @@ defmodule Elescore.Projection.Downtimes do
       end)
       |> Task.await(:infinity)
 
-    :ets.delete_all_objects(store)
-    Enum.each(downtimes, &insert_downtime(store, &1))
-
     Process.send_after(self(), :calculate_downtimes, 60_000)
-    {:noreply, store}
+    {:noreply, downtimes}
   end
 
   defp is_unresolved_or_happend_within_given_time(
@@ -50,10 +46,6 @@ defmodule Elescore.Projection.Downtimes do
       duration,
       &min(duration + &1, thirty_days_in_seconds())
     )
-  end
-
-  defp insert_downtime(store, {facility_id, downtime}) do
-    :ets.insert(store, {facility_id, downtime})
   end
 
   defp thirty_days_in_seconds, do: 60 * 60 * 24 * 30
