@@ -2,7 +2,7 @@ defmodule Elescore.Projection.Print do
   use GenServer
   use Elescore.Projection.SimpleProjection
 
-  def stream_name, do: :"Disruptions.DB"
+  def stream_names, do: [:"Disruptions.DB"]
 
   def init_state, do: 0
 

@@ -11,7 +11,7 @@ defmodule Elescore.Store do
   end
 
   @spec subscribe(atom(), integer()) :: {:ok, pid()} | :error
-  def subscribe(stream_name, batch_size \\ 1000) do
-    Subscription.subscribe(stream_name, batch_size)
+  def subscribe(stream_names, batch_size \\ 1000) do
+    Subscription.subscribe(stream_names, batch_size)
   end
 end

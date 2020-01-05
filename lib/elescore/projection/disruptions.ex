@@ -4,7 +4,7 @@ defmodule Elescore.Projection.Disruptions do
   alias Elescore.Store.Event.{FacilityDisrupted, DisruptionReasonUpdated, FacilityRestored}
 
   defmodule State do
-    defstruct active_disruptions: %{}, disruptions: %{}
+    defstruct active_disruptions: %{}, number_of_disruptions: 0, disruption_store: nil
   end
 
   defmodule Disruption do
@@ -16,15 +16,15 @@ defmodule Elescore.Projection.Disruptions do
               reason: nil
   end
 
-  def stream_name, do: :"Disruptions.DB"
+  def stream_names, do: [:"Disruptions.DB"]
 
-  def init_state, do: %State{}
+  def init_state, do: %State{disruption_store: :ets.new(:projection_disruptions, [:ordered_set, :named_table])}
 
   def apply_event(event, state) do
-    %State{active_disruptions: active_disruptions, disruptions: disruptions} = state
+    %State{active_disruptions: active_disruptions, number_of_disruptions: number_of_disruptions, disruption_store: disruption_store} = state
 
     facility_id = event.payload.facilityId
-    disruption_id = Map.get(active_disruptions, facility_id, Enum.count(disruptions) + 1)
+    disruption_id = Map.get(active_disruptions, facility_id, number_of_disruptions + 1)
     disruption = make_disruption(disruption_id, event.occurred_on, event.payload)
 
     new_active_disruptions =
@@ -34,10 +34,15 @@ defmodule Elescore.Projection.Disruptions do
         Map.put(active_disruptions, facility_id, disruption_id)
       end
 
-    new_disruptions =
-      Map.update(disruptions, disruption_id, disruption, &merge_disruption(disruption, &1))
+    case :ets.lookup(disruption_store, disruption_id) do
+      [{_id, existing_disruption}] ->
+        :ets.insert(disruption_store, {disruption_id, merge_disruption(disruption, existing_disruption)})
 
-    %State{active_disruptions: new_active_disruptions, disruptions: new_disruptions}
+      [] ->
+        :ets.insert_new(disruption_store, {disruption_id, disruption})
+    end
+
+    %State{state | active_disruptions: new_active_disruptions, number_of_disruptions: disruption_id }
   end
 
   defp make_disruption(id, occurred_on, %FacilityDisrupted{} = event) do
@@ -77,7 +82,7 @@ defmodule Elescore.Projection.Disruptions do
     %Disruption{
       id: d1.id,
       facility_id: d1.facility_id,
-      occurred_on: d1.occurred_on,
+      occurred_on: d2.occurred_on,
       updated_on: if(d1.updated_on != nil, do: d1.updated_on, else: d2.updated_on),
       resolved_on: if(d1.resolved_on != nil, do: d1.resolved_on, else: d2.resolved_on),
       reason: if(d1.reason != nil, do: d1.reason, else: d2.reason)

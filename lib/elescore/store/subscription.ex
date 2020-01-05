@@ -16,10 +16,10 @@ defmodule Elescore.Store.Subscription do
     {:ok, state}
   end
 
-  def subscribe(stream_name, batch_size) do
+  def subscribe(stream_names, batch_size) do
     args = %{
       subscriber: self(),
-      stream_name: stream_name,
+      stream_names: stream_names,
       batch_size: batch_size,
       current_sequence: 0,
       mode: :replay
@@ -37,13 +37,13 @@ defmodule Elescore.Store.Subscription do
 
   def handle_info(:replay, state) do
     %{
-      stream_name: stream_name,
+      stream_names: stream_names,
       current_sequence: current_sequence,
       batch_size: batch_size,
       subscriber: subscriber
     } = state
 
-    result = Persistence.read(stream_name, current_sequence, batch_size)
+    result = Persistence.read(stream_names, current_sequence, batch_size)
 
     case result do
       {:ok, events, next_sequence} ->
@@ -58,18 +58,31 @@ defmodule Elescore.Store.Subscription do
   end
 
   def handle_cast({:handle_event, %Event{sequence: sequence} = event}, _from, state) do
-    %{current_sequence: current_sequence, mode: mode, subscriber: subscriber} = state
+    %{
+      stream_names: stream_names,
+      current_sequence: current_sequence,
+      mode: mode,
+      subscriber: subscriber
+    } = state
 
-    case mode do
-      :replay ->
-        {:noreply, state}
+    if is_subscribed_to_event(event, stream_names) do
+      case mode do
+        :replay ->
+          {:noreply, state}
 
-      :continue when sequence <= current_sequence ->
-        {:noreply, state}
+        :continue when sequence <= current_sequence ->
+          {:noreply, state}
 
-      :continue ->
-        GenServer.call(subscriber, {:next_events, [event]})
-        {:noreply, %{state | current_sequence: sequence}}
+        :continue ->
+          GenServer.call(subscriber, {:next_events, [event]})
+          {:noreply, %{state | current_sequence: sequence}}
+      end
+    else
+      {:noreply, state}
     end
+  end
+
+  defp is_subscribed_to_event(event, stream_names) do
+    Enum.member?(stream_names, event.stream_name)
   end
 end

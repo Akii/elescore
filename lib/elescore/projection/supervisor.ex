@@ -8,7 +8,8 @@ defmodule Elescore.Projection.Supervisor do
   def init(_) do
     children = [
       worker(Elescore.Projection.Print, []),
-      worker(Elescore.Projection.Disruptions, [])
+      worker(Elescore.Projection.Disruptions, []),
+      worker(Elescore.Projection.Downtimes, []),
     ]
 
     supervise(children, strategy: :one_for_one)

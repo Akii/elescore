@@ -28,8 +28,8 @@ defmodule Elescore.Store.Persistence do
     GenServer.call(__MODULE__, {:append, event})
   end
 
-  def read(stream_name, start_sequence, number_of_events) do
-    GenServer.call(__MODULE__, {:read, stream_name, start_sequence, number_of_events})
+  def read(stream_names, start_sequence, number_of_events) do
+    GenServer.call(__MODULE__, {:read, stream_names, start_sequence, number_of_events})
   end
 
   def handle_call({:append, %Event{} = event}, _from, state) do
@@ -43,18 +43,13 @@ defmodule Elescore.Store.Persistence do
     {:reply, {:ok, event}, state}
   end
 
-  def handle_call({:read, stream_name, start_sequence, number_of_events}, _from, state) do
+  def handle_call({:read, stream_names, start_sequence, number_of_events}, _from, state) do
     {:ok, rows} =
       Sqlitex.Server.query(
         Elescore.Store.EventStore,
-        """
-        SELECT id, sequence, type, stream AS stream_name, occurred_on, payload
-        FROM event_store
-        WHERE stream = ?1 AND sequence > ?2
-        LIMIT ?3
-        """,
+        build_query(stream_names),
         into: %{},
-        bind: [stream_name, start_sequence, number_of_events]
+        bind: Enum.concat(stream_names, [start_sequence, number_of_events])
       )
 
     events = rows |> Enum.map(&to_event/1)
@@ -65,6 +60,24 @@ defmodule Elescore.Store.Persistence do
       next_sequence = events |> Enum.map(& &1.sequence) |> Enum.max()
       {:reply, {:ok, events, next_sequence}, state}
     end
+  end
+
+  def build_query(stream_names) do
+    number_of_streams = Enum.count(stream_names)
+
+    match_stream =
+      1..number_of_streams
+      |> Enum.map(fn i ->
+        "stream = ?#{i}"
+      end)
+      |> Enum.join(" OR ")
+
+    """
+    SELECT id, sequence, type, stream AS stream_name, occurred_on, payload
+    FROM event_store
+    WHERE (#{match_stream}) AND sequence > ?#{number_of_streams + 1}
+    LIMIT ?#{number_of_streams + 2}
+    """
   end
 
   def handle_cast({:broadcast_event, event}, state) do
