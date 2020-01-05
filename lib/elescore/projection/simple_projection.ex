@@ -1,5 +1,5 @@
 defmodule Elescore.Projection.SimpleProjection do
-  @callback stream_names() :: list(Atom.t())
+  @callback stream_name() :: Atom.t()
   @callback init_state() :: any()
   @callback apply_event(any(), any()) :: any()
 
@@ -12,7 +12,7 @@ defmodule Elescore.Projection.SimpleProjection do
       end
 
       def init(_arg) do
-        {:ok, _sub} = Store.subscribe(stream_names())
+        {:ok, _sub} = Store.subscribe(stream_name())
         {:ok, init_state()}
       end
 

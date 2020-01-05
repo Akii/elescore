@@ -14,24 +14,29 @@ defmodule Elescore.Projection.Downtimes do
   end
 
   def handle_info(:calculate_downtimes, store) do
-    disruptions = :ets.tab2list(:projection_disruptions)
-
     now = DateTime.utc_now()
     thirty_days_ago = DateTime.add(now, -thirty_days_in_seconds(), :second)
 
-    downtimes = disruptions
-      |> Enum.map(fn {_id, disruption} -> disruption end)
-      |> Enum.filter(&is_unresolved_or_happend_within_given_time(&1, thirty_days_ago))
-      |> Enum.reduce(%{}, &compute_downtimes_at_time(&1, &2, now))
+    downtimes =
+      Task.async(fn ->
+        :ets.tab2list(:projection_disruptions)
+        |> Stream.map(fn {_id, disruption} -> disruption end)
+        |> Stream.filter(&is_unresolved_or_happend_within_given_time(&1, thirty_days_ago))
+        |> Enum.reduce(%{}, &compute_downtimes_at_time(&1, &2, now))
+      end)
+      |> Task.await(:infinity)
 
     :ets.delete_all_objects(store)
-    downtimes |> Enum.each(&insert_downtime(store, &1))
+    Enum.each(downtimes, &insert_downtime(store, &1))
 
     Process.send_after(self(), :calculate_downtimes, 60_000)
     {:noreply, store}
   end
 
-  defp is_unresolved_or_happend_within_given_time(%Disruption{resolved_on: resolved_on} = _disruption, date_time) do
+  defp is_unresolved_or_happend_within_given_time(
+         %Disruption{resolved_on: resolved_on} = _disruption,
+         date_time
+       ) do
     resolved_on == nil || DateTime.compare(resolved_on, date_time) == :gt
   end
 
@@ -39,7 +44,12 @@ defmodule Elescore.Projection.Downtimes do
     resolved_on = if(disruption.resolved_on != nil, do: disruption.resolved_on, else: now)
     duration = DateTime.diff(resolved_on, disruption.occurred_on)
 
-    Map.update(acc, disruption.facility_id, duration, &(min(duration + &1, thirty_days_in_seconds())))
+    Map.update(
+      acc,
+      disruption.facility_id,
+      duration,
+      &min(duration + &1, thirty_days_in_seconds())
+    )
   end
 
   defp insert_downtime(store, {facility_id, downtime}) do

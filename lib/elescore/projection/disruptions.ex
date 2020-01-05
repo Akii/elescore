@@ -16,12 +16,16 @@ defmodule Elescore.Projection.Disruptions do
               reason: nil
   end
 
-  def stream_names, do: [:"Disruptions.DB"]
+  def stream_name, do: :"Disruptions.DB"
 
   def init_state, do: %State{disruption_store: :ets.new(:projection_disruptions, [:ordered_set, :named_table])}
 
   def apply_event(event, state) do
-    %State{active_disruptions: active_disruptions, number_of_disruptions: number_of_disruptions, disruption_store: disruption_store} = state
+    %State{
+      active_disruptions: active_disruptions,
+      number_of_disruptions: number_of_disruptions,
+      disruption_store: disruption_store
+    } = state
 
     facility_id = event.payload.facilityId
     disruption_id = Map.get(active_disruptions, facility_id, number_of_disruptions + 1)
@@ -36,13 +40,26 @@ defmodule Elescore.Projection.Disruptions do
 
     case :ets.lookup(disruption_store, disruption_id) do
       [{_id, existing_disruption}] ->
-        :ets.insert(disruption_store, {disruption_id, merge_disruption(disruption, existing_disruption)})
+        :ets.insert(
+          disruption_store,
+          {disruption_id, merge_disruption(disruption, existing_disruption)}
+        )
 
       [] ->
         :ets.insert_new(disruption_store, {disruption_id, disruption})
     end
 
-    %State{state | active_disruptions: new_active_disruptions, number_of_disruptions: disruption_id }
+    new_number_of_disruptions =
+      if(Map.has_key?(active_disruptions, facility_id),
+        do: number_of_disruptions,
+        else: number_of_disruptions + 1
+      )
+
+    %State{
+      state
+      | active_disruptions: new_active_disruptions,
+        number_of_disruptions: new_number_of_disruptions
+    }
   end
 
   defp make_disruption(id, occurred_on, %FacilityDisrupted{} = event) do

@@ -16,10 +16,10 @@ defmodule Elescore.Store.Subscription do
     {:ok, state}
   end
 
-  def subscribe(stream_names, batch_size) do
+  def subscribe(stream_name, batch_size) do
     args = %{
       subscriber: self(),
-      stream_names: stream_names,
+      stream_name: stream_name,
       batch_size: batch_size,
       current_sequence: 0,
       mode: :replay
@@ -37,13 +37,13 @@ defmodule Elescore.Store.Subscription do
 
   def handle_info(:replay, state) do
     %{
-      stream_names: stream_names,
+      stream_name: stream_name,
       current_sequence: current_sequence,
       batch_size: batch_size,
       subscriber: subscriber
     } = state
 
-    result = Persistence.read(stream_names, current_sequence, batch_size)
+    result = Persistence.read(stream_name, current_sequence, batch_size)
 
     case result do
       {:ok, events, next_sequence} ->
