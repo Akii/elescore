@@ -12,7 +12,7 @@ let
   nixpkgs = (import <nixpkgs> {}).fetchFromGitHub {
     owner = "NixOS";
     repo = "nixpkgs";
-    rev = "cc2b6f32a9073748965a4f2e7c874a0acc4c3838";
+    rev = "c5c2ac4f45959727b043b3478f28829fac36fffb";
     sha256 = "05zblr02lkfq83zrrnx88c3y5ras6k5a4dmipv651brd67r4v6qg";
   };
 
