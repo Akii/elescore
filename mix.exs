@@ -23,7 +23,8 @@ defmodule Elescore.MixProject do
       {:uuid, "~> 1.1"},
       {:credo, "~> 1.1.0", only: [:dev, :test], runtime: false},
       {:sqlitex, "~> 1.7"},
-      {:jason, "~> 1.1"}
+      {:jason, "~> 1.1"},
+      {:plug_cowboy, "~> 2.0"}
     ]
   end
 end

@@ -10,6 +10,7 @@ defmodule Elescore.Supervisor do
     children = [
       supervisor(Elescore.Store.Supervisor, [config.databaseFile]),
       supervisor(Elescore.Projection.Supervisor, []),
+      supervisor(Elescore.Api.Supervisor, [])
     ]
 
     supervise(children, strategy: :one_for_all)
