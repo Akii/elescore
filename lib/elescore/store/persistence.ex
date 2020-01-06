@@ -5,7 +5,7 @@ defmodule Elescore.Store.Persistence do
 
   use GenServer
   alias Elescore.Store.Event
-  alias Elescore.Store.Event.{FacilityDisrupted, DisruptionReasonUpdated, FacilityRestored}
+  alias Elescore.Store.Event.{FacilityDisrupted, DisruptionReasonUpdated, FacilityRestored, FacilityIdentified, FacilityAssignedToObject, FacilityLocated, FacilityDeleted, FacilityDescriptionUpdated, ObjectIdentified}
 
   def start_link() do
     GenServer.start_link(__MODULE__, nil, name: __MODULE__)
@@ -28,8 +28,8 @@ defmodule Elescore.Store.Persistence do
     GenServer.call(__MODULE__, {:append, event})
   end
 
-  def read(stream_name, start_sequence, number_of_events) do
-    GenServer.call(__MODULE__, {:read, stream_name, start_sequence, number_of_events})
+  def read(stream_names, start_sequence, number_of_events) do
+    GenServer.call(__MODULE__, {:read, stream_names, start_sequence, number_of_events})
   end
 
   def handle_call({:append, %Event{} = event}, _from, state) do
@@ -43,18 +43,13 @@ defmodule Elescore.Store.Persistence do
     {:reply, {:ok, event}, state}
   end
 
-  def handle_call({:read, stream_name, start_sequence, number_of_events}, _from, state) do
+  def handle_call({:read, stream_names, start_sequence, number_of_events}, _from, state) do
     {:ok, rows} =
       Sqlitex.Server.query(
         Elescore.Store.EventStore,
-        """
-        SELECT id, sequence, type, stream AS stream_name, occurred_on, payload
-        FROM event_store
-        WHERE stream = ?1 AND sequence > ?2
-        LIMIT ?3
-        """,
+        build_query(stream_names),
         into: %{},
-        bind: [stream_name, start_sequence, number_of_events]
+        bind: Enum.concat(stream_names, [start_sequence, number_of_events])
       )
 
     events = rows |> Enum.map(&to_event/1)
@@ -65,6 +60,24 @@ defmodule Elescore.Store.Persistence do
       next_sequence = events |> Enum.map(& &1.sequence) |> Enum.max()
       {:reply, {:ok, events, next_sequence}, state}
     end
+  end
+
+  def build_query(stream_names) do
+    number_of_streams = Enum.count(stream_names)
+
+    match_stream =
+      1..number_of_streams
+      |> Enum.map(fn i ->
+        "stream = ?#{i}"
+      end)
+      |> Enum.join(" OR ")
+
+    """
+    SELECT id, sequence, type, stream AS stream_name, occurred_on, payload
+    FROM event_store
+    WHERE (#{match_stream}) AND sequence > ?#{number_of_streams + 1}
+    LIMIT ?#{number_of_streams + 2}
+    """
   end
 
   def handle_cast({:broadcast_event, event}, state) do
@@ -114,6 +127,60 @@ defmodule Elescore.Store.Persistence do
 
     %FacilityRestored{
       facilityId: facility_id
+    }
+  end
+
+  defp decode_payload(:"de.elescore.integration.v1.FacilityIdentified", payload) do
+    %{"facilityId" => facility_id, "facilityType" => facility_type, "description" => description} = payload
+
+    %FacilityIdentified{
+      facilityId: facility_id,
+      facilityType: facility_type,
+      description: description
+    }
+  end
+
+  defp decode_payload(:"de.elescore.integration.v1.FacilityAssignedToObject", payload) do
+    %{"facilityId" => facility_id, "objectId" => object_id} = payload
+
+    %FacilityAssignedToObject{
+      facilityId: facility_id,
+      objectId: object_id
+    }
+  end
+
+  defp decode_payload(:"de.elescore.integration.v1.FacilityLocated", payload) do
+    %{"facilityId" => facility_id, "geoLocation" => geo_location} = payload
+
+    %FacilityLocated{
+      facilityId: facility_id,
+      geoLocation: geo_location
+    }
+  end
+
+  defp decode_payload(:"de.elescore.integration.v1.FacilityDeleted", payload) do
+    %{"facilityId" => facility_id} = payload
+
+    %FacilityDeleted{
+      facilityId: facility_id
+    }
+  end
+
+  defp decode_payload(:"de.elescore.integration.v1.FacilityDescriptionUpdated", payload) do
+    %{"facilityId" => facility_id, "description" => description} = payload
+
+    %FacilityDescriptionUpdated{
+      facilityId: facility_id,
+      description: description
+    }
+  end
+
+  defp decode_payload(:"de.elescore.integration.v1.ObjectIdentified", payload) do
+    %{"objectId" => object_id, "description" => description} = payload
+
+    %ObjectIdentified{
+      objectId: object_id,
+      description: description
     }
   end
 

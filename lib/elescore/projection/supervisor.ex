@@ -9,6 +9,9 @@ defmodule Elescore.Projection.Supervisor do
     children = [
       worker(Elescore.Projection.Disruptions, []),
       worker(Elescore.Projection.Downtimes, []),
+      worker(Elescore.Projection.Stats, []),
+      worker(Elescore.Projection.Facilities, []),
+      worker(Elescore.Projection.Objects, []),
     ]
 
     supervise(children, strategy: :one_for_one)

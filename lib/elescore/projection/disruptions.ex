@@ -4,7 +4,7 @@ defmodule Elescore.Projection.Disruptions do
   alias Elescore.Store.Event.{FacilityDisrupted, DisruptionReasonUpdated, FacilityRestored}
 
   defmodule State do
-    defstruct active_disruptions: %{}, number_of_disruptions: 0, disruption_store: nil
+    defstruct active_disruptions: %{}, disruptions: %{}
   end
 
   defmodule Disruption do
@@ -16,19 +16,20 @@ defmodule Elescore.Projection.Disruptions do
               reason: nil
   end
 
-  def stream_name, do: :"Disruptions.DB"
+  def get_unresolved_or_happend_within_given_time(date_time) do
+    GenServer.call(__MODULE__, {:get_unresolved_or_happend_within_given_time, date_time})
+  end
 
-  def init_state, do: %State{disruption_store: :ets.new(:projection_disruptions, [:ordered_set, :named_table])}
+  def stream_names, do: [:"Disruptions.DB"]
 
-  def apply_event(event, state) do
-    %State{
-      active_disruptions: active_disruptions,
-      number_of_disruptions: number_of_disruptions,
-      disruption_store: disruption_store
-    } = state
+  def init_state, do: %State{}
 
+  def apply_event(
+        event,
+        %State{active_disruptions: active_disruptions, disruptions: disruptions} = _state
+      ) do
     facility_id = event.payload.facilityId
-    disruption_id = Map.get(active_disruptions, facility_id, number_of_disruptions + 1)
+    disruption_id = Map.get(active_disruptions, facility_id, Enum.count(disruptions) + 1)
     disruption = make_disruption(disruption_id, event.occurred_on, event.payload)
 
     new_active_disruptions =
@@ -38,28 +39,28 @@ defmodule Elescore.Projection.Disruptions do
         Map.put(active_disruptions, facility_id, disruption_id)
       end
 
-    case :ets.lookup(disruption_store, disruption_id) do
-      [{_id, existing_disruption}] ->
-        :ets.insert(
-          disruption_store,
-          {disruption_id, merge_disruption(disruption, existing_disruption)}
-        )
+    new_disruptions =
+      Map.update(disruptions, disruption_id, disruption, &merge_disruption(disruption, &1))
 
-      [] ->
-        :ets.insert_new(disruption_store, {disruption_id, disruption})
-    end
+    %State{active_disruptions: new_active_disruptions, disruptions: new_disruptions}
+  end
 
-    new_number_of_disruptions =
-      if(Map.has_key?(active_disruptions, facility_id),
-        do: number_of_disruptions,
-        else: number_of_disruptions + 1
-      )
+  def handle_call({:next_events, events}, _from, state) do
+    new_state = Enum.reduce(events, state, &apply_event/2)
+    {:reply, :processed, new_state}
+  end
 
-    %State{
-      state
-      | active_disruptions: new_active_disruptions,
-        number_of_disruptions: new_number_of_disruptions
-    }
+  def handle_call(
+        {:get_unresolved_or_happend_within_given_time, date_time},
+        _from,
+        %State{disruptions: disruptions} = state
+      ) do
+    matching_disruptions =
+      disruptions
+      |> Map.values()
+      |> Enum.filter(&is_unresolved_or_happend_within_given_time(&1, date_time))
+
+    {:reply, matching_disruptions, state}
   end
 
   defp make_disruption(id, occurred_on, %FacilityDisrupted{} = event) do
@@ -104,5 +105,12 @@ defmodule Elescore.Projection.Disruptions do
       resolved_on: if(d1.resolved_on != nil, do: d1.resolved_on, else: d2.resolved_on),
       reason: if(d1.reason != nil, do: d1.reason, else: d2.reason)
     }
+  end
+
+  defp is_unresolved_or_happend_within_given_time(
+         %Disruption{resolved_on: resolved_on} = _disruption,
+         date_time
+       ) do
+    resolved_on == nil || DateTime.compare(resolved_on, date_time) == :gt
   end
 end

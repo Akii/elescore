@@ -10,8 +10,8 @@ defmodule Elescore.Store do
     Persistence.append(stream_name, payload, metadata)
   end
 
-  @spec subscribe(atom(), integer()) :: {:ok, pid()} | :error
-  def subscribe(stream_name, batch_size \\ 1000) do
-    Subscription.subscribe(stream_name, batch_size)
+  @spec subscribe(list(atom()), integer()) :: {:ok, pid()} | :error
+  def subscribe(stream_names, batch_size \\ 1000) do
+    Subscription.subscribe(stream_names, batch_size)
   end
 end
