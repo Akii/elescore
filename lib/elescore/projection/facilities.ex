@@ -1,6 +1,5 @@
 defmodule Elescore.Projection.Facilities do
-  use GenServer
-  use Elescore.Projection.SimpleProjection
+  use Elescore.Projection.PersistedProjection
 
   alias Elescore.Store.Event
   alias Elescore.Store.Event.{
@@ -14,6 +13,7 @@ defmodule Elescore.Projection.Facilities do
   }
 
   defmodule Facility do
+    @moduledoc false
     defstruct id: nil,
               objectId: nil,
               type: nil,
@@ -24,67 +24,82 @@ defmodule Elescore.Projection.Facilities do
               deleted: false
   end
 
-  def init(_arg) do
-    send(self(), :update_downtime)
-    {:ok, _sub} = Store.subscribe(stream_names())
-    {:ok, init_state()}
-  end
-
   def stream_names, do: [:"Disruptions.DB", :"Facilities.DB"]
 
-  def init_state, do: :ets.new(:projection_facilities, [:named_table])
+  def table_name, do: "facilities"
 
-  def apply_event(%Event{payload: payload} = _event, store) do
+  def table_schema,
+    do: """
+    id VARCHAR PRIMARY KEY,
+    object_id VARCHAR,
+    type VARCHAR,
+    name VARCHAR,
+    downtime INTEGER DEFAULT 0,
+    is_disrupted BOOLEAN DEFAULT 0,
+    geo_location_lat NUMERIC,
+    geo_location_lng NUMERIC,
+    deleted BOOLEAN DEFAULT 0
+    """
+
+  def init_state do
+    send(self(), :update_downtime)
+    nil
+  end
+
+  def apply_event(%Event{payload: payload} = _event, _state) do
     case payload do
       %FacilityDisrupted{facilityId: facility_id} ->
-        update(store, facility_id, :isDisrupted, true)
+        update(facility_id, :is_disrupted, true)
 
       %FacilityRestored{facilityId: facility_id} ->
-        update(store, facility_id, :isDisrupted, false)
+        update(facility_id, :is_disrupted, false)
 
       %FacilityIdentified{facilityId: facility_id, facilityType: facility_type, description: description} ->
-        update(store, facility_id, :type, facility_type)
-        update(store, facility_id, :name, description)
-        update(store, facility_id, :deleted, false)
+        update(facility_id, :type, facility_type)
+        update(facility_id, :name, description)
+        update(facility_id, :deleted, false)
 
       %FacilityAssignedToObject{facilityId: facility_id, objectId: object_id} ->
-        update(store, facility_id, :objectId, object_id)
+        update(facility_id, :object_id, object_id)
 
       %FacilityLocated{facilityId: facility_id, geoLocation: geo_location} ->
-        update(store, facility_id, :geoLocation, geo_location)
+        update(facility_id, :geo_location_lat, geo_location["lat"])
+        update(facility_id, :geo_location_lng, geo_location["lng"])
 
       %FacilityDescriptionUpdated{facilityId: facility_id, description: description} ->
-        update(store, facility_id, :name, description)
+        update(facility_id, :name, description)
 
       %FacilityDeleted{facilityId: facility_id} ->
-        update(store, facility_id, :deleted, true)
+        update(facility_id, :deleted, true)
 
       _ -> nil
     end
 
-    store
+    nil
   end
 
   def handle_info(:update_downtime, store) do
-    downtimes = GenServer.call(Elescore.Projection.Downtimes, :get_state)
-    facilities = :ets.tab2list(store)
+    downtimes = Elescore.Projection.Downtimes.get_downtimes()
+    {:ok, facility_ids} = Sqlitex.Server.query(Elescore.Projection.ProjectionStore, "SELECT id FROM facilities")
 
-    Enum.each(facilities, fn {facility_id, _facility} ->
+    Enum.each(facility_ids, fn [id: facility_id] ->
       downtime = Map.get(downtimes, facility_id, 0)
-      update(store, facility_id, :downtime, downtime)
+      update(facility_id, :downtime, downtime)
     end)
 
     Process.send_after(self(), :update_downtime, 60_000)
     {:noreply, store}
   end
 
-  defp update(store, facility_id, field, value) do
-    case :ets.lookup(store, facility_id) do
-      [{_id, facility}] ->
-        :ets.insert(store, {facility_id, Map.put(facility, field, value)})
-
-      [] ->
-        :ets.insert(store, {facility_id, Map.put(%Facility{id: facility_id}, field, value)})
-    end
+  defp update(facility_id, field, value) do
+    {:ok, _} = Sqlitex.Server.query(
+      Elescore.Projection.ProjectionStore,
+      """
+      INSERT INTO facilities (id, #{field}) VALUES (?1, ?2)
+      ON CONFLICT (id)
+      DO UPDATE SET #{field} = excluded.#{field}
+      """,
+      bind: [facility_id, value]
+    )
   end
 end
