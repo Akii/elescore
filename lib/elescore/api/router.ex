@@ -92,7 +92,6 @@ defmodule Elescore.Api.Router do
       :not_found -> send(conn, "Not found.", 404)
       :bad_request -> send(conn, "Bad request.", 400)
       :internal_server_error -> send(conn, "Internal server error.", 500)
-      _ -> send(conn, "Internal server error.", 500)
     end
   end
 

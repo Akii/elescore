@@ -55,20 +55,20 @@ defmodule Elescore.Api.Types do
     @moduledoc false
 
     @derive Jason.Encoder
-    defstruct id: nil, name: "Unknown"
+    defstruct id: nil, name: nil
   end
 
   defmodule Facility do
     @moduledoc false
 
     @derive Jason.Encoder
-    defstruct id: nil, type: nil, name: "Unknown", isDisrupted: false
+    defstruct id: nil, type: nil, name: nil, isDisrupted: false
   end
 
   defmodule FacilityDetails do
     @moduledoc false
 
     @derive Jason.Encoder
-    defstruct id: nil, type: nil, name: "Unknown", object: nil, downtime: 0, isDisrupted: false
+    defstruct id: nil, type: nil, name: nil, object: nil, downtime: 0, isDisrupted: false
   end
 end

@@ -18,7 +18,9 @@ defmodule Elescore.Projection.Objects do
 
   def apply_event(%Event{payload: payload} = _event, _state) do
     case payload do
-      %ObjectIdentified{objectId: object_id, description: name} ->
+      %ObjectIdentified{objectId: object_id, description: description} ->
+        name = if description == "Unknown", do: nil, else: description
+
         Sqlitex.Server.query(
           Elescore.Projection.ProjectionStore,
           """

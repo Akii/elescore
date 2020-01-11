@@ -22,7 +22,7 @@ defmodule Elescore.Api.Objects do
         o.name AS object_name,
         f.id AS facility_id,
         f.type AS facility_type,
-        f.name AS facility_name,
+        IFNULL(f.name, f.id) AS facility_name,
         f.is_disrupted
       FROM objects o JOIN facilities f ON (o.id = f.object_id)
       WHERE o.name LIKE ?1 OR f.name LIKE ?1

@@ -2,6 +2,7 @@ defmodule Elescore.Projection.Facilities do
   use Elescore.Projection.PersistedProjection
 
   alias Elescore.Store.Event
+
   alias Elescore.Store.Event.{
     FacilityDisrupted,
     FacilityRestored,
@@ -54,9 +55,15 @@ defmodule Elescore.Projection.Facilities do
       %FacilityRestored{facilityId: facility_id} ->
         update(facility_id, :is_disrupted, false)
 
-      %FacilityIdentified{facilityId: facility_id, facilityType: facility_type, description: description} ->
+      %FacilityIdentified{
+        facilityId: facility_id,
+        facilityType: facility_type,
+        description: description
+      } ->
+        name = if description == "Unknown", do: nil, else: description
+
         update(facility_id, :type, facility_type)
-        update(facility_id, :name, description)
+        update(facility_id, :name, name)
         update(facility_id, :deleted, false)
 
       %FacilityAssignedToObject{facilityId: facility_id, objectId: object_id} ->
@@ -67,12 +74,14 @@ defmodule Elescore.Projection.Facilities do
         update(facility_id, :geo_location_lng, geo_location["lng"])
 
       %FacilityDescriptionUpdated{facilityId: facility_id, description: description} ->
-        update(facility_id, :name, description)
+        name = if description == "Unknown", do: nil, else: description
+        update(facility_id, :name, name)
 
       %FacilityDeleted{facilityId: facility_id} ->
         update(facility_id, :deleted, true)
 
-      _ -> nil
+      _ ->
+        nil
     end
 
     nil
@@ -80,7 +89,9 @@ defmodule Elescore.Projection.Facilities do
 
   def handle_info(:update_downtime, store) do
     downtimes = Elescore.Projection.Downtimes.get_downtimes()
-    {:ok, facility_ids} = Sqlitex.Server.query(Elescore.Projection.ProjectionStore, "SELECT id FROM facilities")
+
+    {:ok, facility_ids} =
+      Sqlitex.Server.query(Elescore.Projection.ProjectionStore, "SELECT id FROM facilities")
 
     Enum.each(facility_ids, fn [id: facility_id] ->
       downtime_in_seconds = Map.get(downtimes, facility_id, 0)
@@ -95,15 +106,16 @@ defmodule Elescore.Projection.Facilities do
   end
 
   defp update(facility_id, field, value) do
-    {:ok, _} = Sqlitex.Server.query(
-      Elescore.Projection.ProjectionStore,
-      """
-      INSERT INTO facilities (id, #{field}) VALUES (?1, ?2)
-      ON CONFLICT (id)
-      DO UPDATE SET #{field} = excluded.#{field}
-      """,
-      bind: [facility_id, value]
-    )
+    {:ok, _} =
+      Sqlitex.Server.query(
+        Elescore.Projection.ProjectionStore,
+        """
+        INSERT INTO facilities (id, #{field}) VALUES (?1, ?2)
+        ON CONFLICT (id)
+        DO UPDATE SET #{field} = excluded.#{field}
+        """,
+        bind: [facility_id, value]
+      )
   end
 
   defp thirty_days_in_minutes(), do: 60 * 24 * 30

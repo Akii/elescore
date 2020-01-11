@@ -67,7 +67,7 @@ defmodule Elescore.Api.Pagination do
         %ContentRangeRequest{
           key: String.to_existing_atom(key),
           id: key_val,
-          offset: min(offset, 500),
+          offset: offset,
           limit: min(limit, 500),
           order: if(order == "desc", do: :desc, else: :asc)
         }
@@ -76,7 +76,7 @@ defmodule Elescore.Api.Pagination do
         %ContentRangeRequest{
           key: String.to_existing_atom(key),
           id: nil,
-          offset: min(default_with(offset, 0), 500),
+          offset: default_with(offset, 0),
           limit: min(default_with(limit, 50), 500),
           order: if(order == "desc", do: :desc, else: :asc)
         }

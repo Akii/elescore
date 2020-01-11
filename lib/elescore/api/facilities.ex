@@ -12,7 +12,7 @@ defmodule Elescore.Api.Facilities do
     Sqlitex.Server.query(
       Elescore.Projection.ProjectionStore,
       """
-      SELECT f.id, f.type, f.name, o.id as object_id, o.name as object_name, f.downtime, f.is_disrupted
+      SELECT f.id, f.type, IFNULL(f.name, f.id) AS name, o.id as object_id, IFNULL(o.name, o.id) as object_name, f.downtime, f.is_disrupted
       FROM facilities f LEFT JOIN objects o
       ON f.object_id = o.id
       WHERE f.id = ?1
