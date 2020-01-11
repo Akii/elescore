@@ -48,7 +48,7 @@ defmodule Elescore.Projection.Downtimes do
       end
     {:ok, occurred_on, _} = DateTime.from_iso8601(disruption_row.occurred_on)
 
-    duration = min(DateTime.diff(resolved_on, occurred_on), thirty_days_in_seconds())
+    duration = DateTime.diff(resolved_on, occurred_on)
 
     Map.update(acc, disruption_row.facility_id, duration, &(&1 + duration))
   end

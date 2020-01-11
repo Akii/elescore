@@ -73,12 +73,7 @@ defmodule Elescore.Projection.Disruptions do
         nil
     end
 
-    new_number_of_disruptions =
-      if Enum.member?(active_disruptions, facility_id) do
-        number_of_disruptions
-      else
-        number_of_disruptions + 1
-      end
+    new_number_of_disruptions = max(number_of_disruptions, disruption_id)
 
     %State{
       active_disruptions: new_active_disruptions,

@@ -1,7 +1,8 @@
 defmodule Elescore.Api.Router do
   use Plug.Router
-  alias Elescore.Api.{Facilities, Objects}
+  alias Elescore.Api.{Facilities, Objects, DisruptionMarkers, Disruptions, Pagination}
   alias Elescore.Projection.{OverallStats, DisruptionsPerDay}
+  alias Elescore.Api.Types.DisruptionPerDay
 
   plug(Plug.Parsers,
     parsers: [:json],
@@ -18,20 +19,38 @@ defmodule Elescore.Api.Router do
   end
 
   get "/stats/average-disruptions-per-day" do
-    disruptions_per_day = DisruptionsPerDay.get_state()
+    disruptions_per_day =
+      DisruptionsPerDay.get_state()
+      |> elem(1)
+      |> Enum.map(fn {k, v} -> %DisruptionPerDay{day: k, disruptions: Statistics.IQR.average(v)} end)
+      |> Enum.sort(&(&1.day >= &2.day))
+      |> Enum.take(31)
+
     respond(conn, {:ok, disruptions_per_day})
   end
 
   get "/disruptions" do
-    respond(conn, :not_implemented)
+    try do
+      range_header =
+        conn
+        |> get_req_header("range")
+        |> List.first()
+
+      range = Pagination.parse_range(range_header)
+      {:ok, result, response} = Disruptions.all(range)
+
+      conn
+      |> put_resp_content_type("application/json")
+      |> Pagination.apply_headers(response)
+      |> send_resp(206, Jason.encode!(result))
+    rescue
+      _ -> respond(conn, :bad_request)
+    end
   end
 
   get "/disruptions/markers" do
-    respond(conn, :not_implemented)
-  end
-
-  get "/disruptions/active" do
-    respond(conn, :not_implemented)
+    response = DisruptionMarkers.get_current_markers()
+    respond(conn, response)
   end
 
   get "/objects" do
@@ -45,7 +64,22 @@ defmodule Elescore.Api.Router do
   end
 
   get "/facilities/:facility_id/disruptions" do
-    respond(conn, :not_implemented)
+    try do
+      range_header =
+        conn
+        |> get_req_header("range")
+        |> List.first()
+
+      range = Pagination.parse_range(range_header)
+      {:ok, result, response} = Disruptions.for_facility(facility_id, range)
+
+      conn
+      |> put_resp_content_type("application/json")
+      |> Pagination.apply_headers(response)
+      |> send_resp(206, Jason.encode!(result))
+    rescue
+      _ -> respond(conn, :bad_request)
+    end
   end
 
   match _ do

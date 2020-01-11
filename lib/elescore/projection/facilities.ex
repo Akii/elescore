@@ -83,7 +83,10 @@ defmodule Elescore.Projection.Facilities do
     {:ok, facility_ids} = Sqlitex.Server.query(Elescore.Projection.ProjectionStore, "SELECT id FROM facilities")
 
     Enum.each(facility_ids, fn [id: facility_id] ->
-      downtime = Map.get(downtimes, facility_id, 0)
+      downtime_in_seconds = Map.get(downtimes, facility_id, 0)
+      downtime_in_minutes = div(downtime_in_seconds, 60)
+      downtime = min(downtime_in_minutes, thirty_days_in_minutes())
+
       update(facility_id, :downtime, downtime)
     end)
 
@@ -102,4 +105,6 @@ defmodule Elescore.Projection.Facilities do
       bind: [facility_id, value]
     )
   end
+
+  defp thirty_days_in_minutes(), do: 60 * 24 * 30
 end
